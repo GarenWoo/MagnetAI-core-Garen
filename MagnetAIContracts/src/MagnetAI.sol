@@ -16,11 +16,11 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
     mapping(uint256 modelManagerId => ModelManager modelManager) public modelManagers;
     mapping(uint256 botHandle => Bot bot) public bots;
     mapping(uint256 botHandle => bool isRegistered) public botHandleRegistry;
-    mapping(address user => uint256 balance) public usersBalance;
+    mapping(address user => uint256 balanceAmount) public userBalance;
     // State Variables for Revenue Sharing
     mapping(uint256 botHandle => address tokenAddr) public issuance;
-    mapping(address account => uint256 balance) public reward;
-    mapping(uint256 botHandle => uint256 balance) public botReward;
+    mapping(address account => uint256 rewardAmount) public reward;
+    mapping(uint256 botHandle => uint256 botRewardAmount) public botReward;
     
     constructor() Ownable(msg.sender) {}
 
@@ -186,8 +186,9 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
 
     function _checkServiceProof(uint256[] memory _botHandle, uint256[] memory _workload, uint256[] memory _callNumber) internal pure {
         uint256 proofAmountMax = 100;
-        if (_botHandle.length == _workload.length && _botHandle.length == _callNumber.length) {
-            revert InvalidProof(_botHandle.length, _workload.length, _callNumber.length);
+        _checkBotHandle(_botHandle);
+        if (_botHandle.length != _workload.length || _botHandle.length != _callNumber.length) {
+            revert UnmatchedProof(_botHandle.length, _workload.length, _callNumber.length);
         }
         if (_botHandle.length > proofAmountMax) {
             revert ExceedProofMaxAmount(_botHandle.length, proofAmountMax);
@@ -242,7 +243,7 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
 
     function payForBot(uint256 _botHandle) external payable {
         _checkBotHandle(_botHandle);
-        usersBalance[msg.sender] += msg.value;
+        userBalance[msg.sender] += msg.value;
         emit BotPayment(msg.sender, msg.value);
     }
 
@@ -272,7 +273,7 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         }
     }
 
-// ———————————————————————————————————————— General  ————————————————————————————————————————
+// ———————————————————————————————————————— General Business ————————————————————————————————————————
     function claimReward() public {
         uint256 rewardValue = reward[msg.sender];
         if (rewardValue == 0) {
@@ -282,6 +283,15 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         (bool claimSuccess,) = payable(msg.sender).call{value: rewardValue}("");
         if (!claimSuccess) {
             revert ETHTransferFailed(msg.sender, rewardValue);
+        }
+    }
+
+    function updateUserBalance(address[] _user, uint256[] _balance) external onlyOwner {
+        if (_user.length != _balance.length) {
+            revert UnmatchedUserBalance(_user.length, _balance.length);
+        }
+        for (uint256 i = 0; i < _user.length; i++) {
+            userBalance[_user[i]] = _balance[i];
         }
     }
     
