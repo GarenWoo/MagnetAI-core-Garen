@@ -3,20 +3,25 @@ pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "./interfaces/IOrderSystem.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "./interfaces/IMagnetAI.sol";
 
-contract OrderSystem is IOrderSystem, Ownable, ReentrancyGuard {
+contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
     uint256 private _modelIdNonce;
     uint256 private _subnetIdNounce;
     uint256 private _modelManagerIdNounce;
-
+    // State Variables for Order System
     mapping(uint256 modelId => AIModel model) public models;
     mapping(uint256 subnetId => Subnet subnet) public subnets;
     mapping(uint256 modelManagerId => ModelManager modelManager) public modelManagers;
     mapping(uint256 botHandle => Bot bot) public bots;
     mapping(uint256 botHandle => bool isRegistered) public botHandleRegistry;
     mapping(address user => uint256 balance) public usersBalance;
-
+    // State Variables for Revenue Sharing
+    mapping(uint256 botHandle => address tokenAddr) public issuance;
+    mapping(address account => uint256 balance) public reward;
+    mapping(uint256 botHandle => uint256 balance) public botReward;
+    
     constructor() Ownable(msg.sender) {}
 
     // receive() external payable {}
@@ -82,6 +87,17 @@ contract OrderSystem is IOrderSystem, Ownable, ReentrancyGuard {
         return models[_modelId];
     }
 
+    function getModelPrice(uint256 _modelId) public view returns (uint256) {
+        _checkModelId(_modelId);
+        return models[_modelId].price;
+    }
+
+    function _checkModelId(uint256 _modelId) internal view {
+        if (models[_modelId].owner == address(0)) {
+            revert NonexistentModel(_modelId);
+        }
+    }
+
 // ———————————————————————————————————————— Subnet ————————————————————————————————————————
     function registerSubnet() external onlyOwner {
         Subnet memory subnet = Subnet({
@@ -101,6 +117,17 @@ contract OrderSystem is IOrderSystem, Ownable, ReentrancyGuard {
     function getSubnetInfo(uint256 _subnetId) public view returns (Subnet memory) {
         _checkSubnetId(_subnetId);
         return subnets[_subnetId];
+    }
+
+    function getSubnetOwner(uint256 _subnetId) public view returns (address) {
+        _checkSubnetId(_subnetId);
+        return subnets[_subnetId].owner;
+    }
+
+    function _checkSubnetId(uint256 _subnetId) internal view {
+        if (subnets[_subnetId].owner == address(0)) {
+            revert NonexistentSubnet(_subnetId);
+        }
     }
 
 // ———————————————————————————————————————— Model Manager ————————————————————————————————————————
@@ -130,9 +157,58 @@ contract OrderSystem is IOrderSystem, Ownable, ReentrancyGuard {
     //     return true;
     // }
 
+    function submitServiceProof(uint256[] calldata _botHandleArray, uint256[] calldata _workloadArray, uint256[] calldata _callNumberArray) external {
+        _checkServiceProof(_botHandleArray, _workloadArray, _callNumberArray);
+        for (uint256 i = 0; i < _botHandleArray.length; i++) {
+            _handleReward(i, _botHandleArray[i], _callNumberArray[i]);
+        }
+        // emit ServiceProofSubmitted(_botHandleArray, _workloadArray, _callNumberArray);
+    }
+
     function getModelManagerInfo(uint256 _modelManagerId) public view returns (ModelManager memory) {
         _checkModelManagerId(_modelManagerId);
         return modelManagers[_modelManagerId];
+    }
+
+    function getModelManagerSubnetId(uint256 _modelManagerId) public view returns (uint256) {
+        return modelManagers[_modelManagerId].subnetId;
+    }
+
+    function getModelManagerModelId(uint256 _modelManagerId) public view returns (uint256) {
+        return modelManagers[_modelManagerId].modelId;
+    }
+
+    function _checkModelManagerId(uint256 _modelManagerId) internal view {
+        if (modelManagers[_modelManagerId].owner == address(0)) {
+            revert NonexistentModelManager(_modelManagerId);
+        }
+    }
+
+    function _checkServiceProof(uint256[] memory _botHandle, uint256[] memory _workload, uint256[] memory _callNumber) internal pure {
+        uint256 proofAmountMax = 100;
+        if (_botHandle.length == _workload.length && _botHandle.length == _callNumber.length) {
+            revert InvalidProof(_botHandle.length, _workload.length, _callNumber.length);
+        }
+        if (_botHandle.length > proofAmountMax) {
+            revert ExceedProofMaxAmount(_botHandle.length, proofAmountMax);
+        }
+    }
+
+    function _handleReward(uint256 _index, uint256 _botHandle, uint256 _callNumber) internal {
+        address botOwner = getBotOwner(_botHandle);
+        uint256 modelManagerId = getBotModelManagerId(_botHandle);
+        uint256 modelId = getModelManagerModelId(modelManagerId);
+        address subnetOwner = getSubnetOwner(getModelManagerSubnetId(modelManagerId));
+        (bool networkReward_success, uint256 networkFee) = Math.tryMul(_callNumber, getModelPrice(modelId));
+        if (!networkReward_success) {
+            revert RewardCalculationFailed(_index);
+        }
+        (bool botReward_success, uint256 botFee) = Math.tryMul(_callNumber, getBotPrice(_botHandle));
+        if (!botReward_success) {
+            revert RewardCalculationFailed(_index);
+        }
+        reward[subnetOwner] += networkFee;
+        issuance[_botHandle] == address(0) ? reward[botOwner] += botFee : botReward[_botHandle] += botFee;
     }
 
 // ———————————————————————————————————————— Bot ————————————————————————————————————————
@@ -175,23 +251,19 @@ contract OrderSystem is IOrderSystem, Ownable, ReentrancyGuard {
         return bots[_botHandle];
     }
 
-// ———————————————————————————————————————— Internal Functions ————————————————————————————————————————
-    function _checkModelId(uint256 _modelId) internal view {
-        if (models[_modelId].owner == address(0)) {
-            revert NonexistentModel(_modelId);
-        }
+    function getBotModelManagerId(uint256 _botHandle) public view returns (uint256) {
+        _checkBotHandle(_botHandle);
+        return bots[_botHandle].modelManagerId;
     }
 
-    function _checkSubnetId(uint256 _subnetId) internal view {
-        if (subnets[_subnetId].owner == address(0)) {
-            revert NonexistentSubnet(_subnetId);
-        }
+    function getBotOwner(uint256 _botHandle) public view returns (address) {
+        _checkBotHandle(_botHandle);
+        return bots[_botHandle].owner;
     }
 
-    function _checkModelManagerId(uint256 _modelManagerId) internal view {
-        if (modelManagers[_modelManagerId].owner == address(0)) {
-            revert NonexistentModelManager(_modelManagerId);
-        }
+    function getBotPrice(uint256 _botHandle) public view returns (uint256) {
+        _checkBotHandle(_botHandle);
+        return bots[_botHandle].price;
     }
 
     function _checkBotHandle(uint256 _botHandle) internal view {

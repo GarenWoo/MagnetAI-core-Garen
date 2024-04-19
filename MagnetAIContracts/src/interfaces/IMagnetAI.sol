@@ -2,9 +2,9 @@
 pragma solidity ^0.8.19;
 
 /**
- * @title The interface of OrderSystem.
+ * @title The interface of MagnetAI.
  */
-interface IOrderSystem {
+interface IMagnetAI {
     struct AIModel {
         uint256 modelId;
         address owner;
@@ -42,7 +42,7 @@ interface IOrderSystem {
     event BotPriceModified(uint256 botHandle, uint256 newPrice);
     event BotFollowed(uint256 botHandle, address user);
     event BotPayment(address user, uint256 value);
-    event ServiceProofSubmitted(uint256 botHandle, uint256 workload, uint256 callNumber);
+    event ServiceProofSubmitted(uint256[] botHandle, uint256[] workload, uint256[] callNumber);
     
     error NotModelOwner(address caller, address owner);
     error NotSubnetOwner(address caller, address owner);
@@ -50,10 +50,12 @@ interface IOrderSystem {
     error NotBotOwner(address caller, address owner);
     error NonexistentModel(uint256 modelId);
     error NonexistentSubnet(uint256 subnetId);
-    error BotHandleHasExisted(uint256 botHandle);
     error NonexistentModelManager(uint256 subnetId);
     error NonexistentBotHandle(uint256 botHandle);
-    error MathFailure();
+    error BotHandleHasExisted(uint256 botHandle);
+    error RewardCalculationFailed(uint256 indexOfArray);
+    error ExceedProofMaxAmount(uint256 inputAmount, uint256 maxAmount);
+    error InvalidProof(uint256 botHandleLength, uint256 workloadLength, uint256 callNumberLength);
 
 // ———————————————————————————————————————— AI Model ————————————————————————————————————————
     function registerModel(string calldata _metadata, uint256 _price) external;
@@ -68,7 +70,7 @@ interface IOrderSystem {
     function getSubnetInfo(uint256 _subnetId) external view returns (Subnet memory);
 
 // ———————————————————————————————————————— Model Manager ————————————————————————————————————————
-    function registerModelManager(uint256 _subnetId, uint256 _modelId, string calldata _url) external;
+    function registerModelManager(uint256 _modelId, uint256 _subnetId, string calldata _url) external;
 
     function setModelManagerUrl(uint256 _modelManagerId, string memory _newUrl) external;
 
@@ -81,7 +83,7 @@ interface IOrderSystem {
 
     function followBot(uint256 _botHandle) external;
 
-    function payForBot() external payable;
+    function payForBot(uint256 _botHandle) external payable;
 
     function getBotInfo(uint256 _botHandle) external view returns (Bot memory);
 }
