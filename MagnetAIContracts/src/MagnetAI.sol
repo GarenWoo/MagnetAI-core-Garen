@@ -272,4 +272,17 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         }
     }
 
+// ———————————————————————————————————————— General  ————————————————————————————————————————
+    function claimReward() public {
+        uint256 rewardValue = reward[msg.sender];
+        if (rewardValue == 0) {
+            revert InsufficientReward(msg.sender);
+        }
+        reward[msg.sender] = 0;
+        (bool claimSuccess,) = payable(msg.sender).call{value: rewardValue}("");
+        if (!claimSuccess) {
+            revert ETHTransferFailed(msg.sender, rewardValue);
+        }
+    }
+    
 }

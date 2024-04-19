@@ -56,6 +56,8 @@ interface IMagnetAI {
     error RewardCalculationFailed(uint256 indexOfArray);
     error ExceedProofMaxAmount(uint256 inputAmount, uint256 maxAmount);
     error InvalidProof(uint256 botHandleLength, uint256 workloadLength, uint256 callNumberLength);
+    error InsufficientReward(address account);
+    error ETHTransferFailed(address account, uint256 value);
 
 // ———————————————————————————————————————— AI Model ————————————————————————————————————————
     function registerModel(string calldata _metadata, uint256 _price) external;
