@@ -2,13 +2,13 @@
 pragma solidity ^0.8.19;
 
 import {Test, console} from "forge-std/Test.sol";
-import "../src/OrderSystem.sol";
+import "../src/MagnetAI.sol";
 
 contract TestOrderSystem is Test {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
-    OrderSystem public entry;
+    MagnetAI public entry;
 
     address public entryAddr;
     
@@ -16,7 +16,7 @@ contract TestOrderSystem is Test {
         deal(alice, 10000 ether);
         deal(bob, 10000 ether);
         vm.startPrank(alice);
-        entry = new OrderSystem();
+        entry = new MagnetAI();
         entryAddr = address(entry);
         vm.stopPrank();
     }
@@ -25,7 +25,7 @@ contract TestOrderSystem is Test {
         uint256 price = 112233;
         vm.startPrank(alice);
         entry.registerModel("abcd", price);
-        OrderSystem.AIModel memory fetchedModel = entry.getModelInfo(0);
+        MagnetAI.AIModel memory fetchedModel = entry.getModelInfo(0);
         assertEq(fetchedModel.modelId, 0, "Expect that the modelId equals 0");
         assertEq(fetchedModel.owner, alice, "Expect that the owner equals alice");
         assertEq(fetchedModel.metadata, "abcd", "Expect that the metadata equals 0xabcd");
@@ -39,7 +39,7 @@ contract TestOrderSystem is Test {
     function test_setModelPrice() public {
         vm.startPrank(alice);
         entry.registerModel("", 12345);
-        OrderSystem.AIModel memory fetchedModel = entry.getModelInfo(0);
+        MagnetAI.AIModel memory fetchedModel = entry.getModelInfo(0);
         console.log("the Price of model 0:", fetchedModel.price);
         entry.setModelPrice(0, 67890);
         fetchedModel = entry.getModelInfo(0);
@@ -55,7 +55,7 @@ contract TestOrderSystem is Test {
     // function test_setModelOwner() public {
     //     vm.startPrank(alice);
     //     entry.registerModel("", 12345);
-    //     OrderSystem.AIModel memory fetchedModel = entry.getModelInfo(0);
+    //     MagnetAI.AIModel memory fetchedModel = entry.getModelInfo(0);
     //     console.log("owner of model 0:", fetchedModel.owner);
     //     assertEq(fetchedModel.owner, alice, "Expect that the owner of Model 0 is alice");
     //     entry.setModelOwner(0, bob);        
@@ -68,7 +68,7 @@ contract TestOrderSystem is Test {
     function test_registerSubnet() public {
         vm.startPrank(alice);
         entry.registerSubnet();
-        OrderSystem.Subnet memory fetchedSubnet = entry.getSubnetInfo(0);
+        MagnetAI.Subnet memory fetchedSubnet = entry.getSubnetInfo(0);
         assertEq(fetchedSubnet.subnetId, 0, "Expect that the subnetId equals 0");
         assertEq(fetchedSubnet.owner, alice, "Expect that the owner equals alice");
         vm.startPrank(bob);
@@ -80,7 +80,7 @@ contract TestOrderSystem is Test {
     // function test_setSubnetOwner() public {
     //     vm.startPrank(alice);
     //     entry.registerSubnet();
-    //     OrderSystem.Subnet memory fetchedSubnet = entry.getSubnetInfo(0);
+    //     MagnetAI.Subnet memory fetchedSubnet = entry.getSubnetInfo(0);
     //     console.log("owner of Subnet 0:", fetchedSubnet.owner);
     //     assertEq(fetchedSubnet.owner, alice, "Expect that the owner of Subnet 0 is alice");
     //     entry.setSubnetOwner(0, bob);        
@@ -95,7 +95,7 @@ contract TestOrderSystem is Test {
         entry.registerModel("", 12345);
         entry.registerSubnet();
         entry.registerModelManager(0, 0, "an api url");
-        OrderSystem.ModelManager memory fetchedModelManager = entry.getModelManagerInfo(0);
+        MagnetAI.ModelManager memory fetchedModelManager = entry.getModelManagerInfo(0);
         assertEq(fetchedModelManager.modelManagerId, 0, "Expect that the modelManagerId equals 0");
         assertEq(fetchedModelManager.subnetId, 0, "Expect that the subnetId equals 0");
         assertEq(fetchedModelManager.modelId, 0, "Expect that the modelId equals 0");
@@ -113,7 +113,7 @@ contract TestOrderSystem is Test {
         entry.registerSubnet();
         entry.registerModelManager(0, 0, "url123");
         entry.setModelManagerUrl(0, "url456");
-        OrderSystem.ModelManager memory fetchedModelManager = entry.getModelManagerInfo(0);
+        MagnetAI.ModelManager memory fetchedModelManager = entry.getModelManagerInfo(0);
         assertEq(fetchedModelManager.url, "url456", "Expect that the url is url456");
         vm.startPrank(bob);
         vm.expectRevert();
@@ -131,7 +131,7 @@ contract TestOrderSystem is Test {
     //     entry.setModelManagerOwner(0, bob);
     //     vm.startPrank(alice);
     //     entry.setModelManagerOwner(0, bob);
-    //     OrderSystem.ModelManager memory fetchedModelManager = entry.getModelManagerInfo(0);
+    //     MagnetAI.ModelManager memory fetchedModelManager = entry.getModelManagerInfo(0);
     //     assertEq(fetchedModelManager.owner, bob, "Expect that the owner of ModelManager 0 is bob");
     //     vm.stopPrank();
     // }
@@ -143,7 +143,7 @@ contract TestOrderSystem is Test {
         entry.registerSubnet();
         entry.registerModelManager(0, 0, "urlForModelManager0");
         entry.createBot(0, 0, "metadataForBot0", price);
-        OrderSystem.Bot memory fetchedBot = entry.getBotInfo(0);
+        MagnetAI.Bot memory fetchedBot = entry.getBotInfo(0);
         assertEq(fetchedBot.botHandle, 0, "Expect that the botHandle is 0");
         assertEq(fetchedBot.modelManagerId, 0, "Expect that the modelManagerId is 0");
         assertEq(fetchedBot.metadata, "metadataForBot0", "Expect that the metadata is 'metadataForBot0'");
@@ -166,7 +166,7 @@ contract TestOrderSystem is Test {
         entry.registerModelManager(0, 0, "urlForModelManager0");
         entry.createBot(0, 0, "metadataForBot0", originalPrice);
         entry.setBotPrice(0, newPrice);
-        OrderSystem.Bot memory fetchedBot = entry.getBotInfo(0);
+        MagnetAI.Bot memory fetchedBot = entry.getBotInfo(0);
         assertEq(fetchedBot.price, newPrice, "Expect that the price of the Bot is 99998888");
         vm.startPrank(bob);
         vm.expectRevert();
@@ -186,12 +186,16 @@ contract TestOrderSystem is Test {
 
     function test_payForBot() public {
         vm.startPrank(alice);
-        entry.payForBot{value: 123 ether}();
-        assertEq(entry.usersBalance(alice), 123 ether, "Expect that the balance of alice is 123 ether");
+        entry.registerModel("", 12345);
+        entry.registerSubnet();
+        entry.registerModelManager(0, 0, "urlForModelManager0");
+        entry.createBot(0, 0, "metadataForBot0", 1122334455);
+        entry.payForBot{value: 123 ether}(0);
+        assertEq(entry.userBalance(alice), 123 ether, "Expect that the balance of alice is 123 ether");
         assertEq(entryAddr.balance, 123 ether, "Expect that the total ETH balance of the contract is 123 ether");
         vm.startPrank(bob);
-        entry.payForBot{value: 377 ether}();
-        assertEq(entry.usersBalance(bob), 377 ether, "Expect that the balance of alice is 123 ether");
+        entry.payForBot{value: 377 ether}(0);
+        assertEq(entry.userBalance(bob), 377 ether, "Expect that the balance of alice is 123 ether");
         assertEq(entryAddr.balance, 500 ether, "Expect that the total ETH balance of the contract is 123 ether");
         vm.stopPrank();
     }
