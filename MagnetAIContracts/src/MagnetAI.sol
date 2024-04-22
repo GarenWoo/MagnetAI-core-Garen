@@ -160,6 +160,7 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
     function submitServiceProof(uint256[] calldata _botHandleArray, uint256[] calldata _workloadArray, uint256[] calldata _callNumberArray) external {
         _checkServiceProof(_botHandleArray, _workloadArray, _callNumberArray);
         for (uint256 i = 0; i < _botHandleArray.length; i++) {
+            _checkBotHandle(_botHandleArray[i]);
             _handleReward(i, _botHandleArray[i], _callNumberArray[i]);
         }
         // emit ServiceProofSubmitted(_botHandleArray, _workloadArray, _callNumberArray);
@@ -186,7 +187,6 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
 
     function _checkServiceProof(uint256[] memory _botHandle, uint256[] memory _workload, uint256[] memory _callNumber) internal pure {
         uint256 proofAmountMax = 100;
-        _checkBotHandle(_botHandle);
         if (_botHandle.length != _workload.length || _botHandle.length != _callNumber.length) {
             revert UnmatchedProof(_botHandle.length, _workload.length, _callNumber.length);
         }
@@ -286,12 +286,12 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         }
     }
 
-    function updateUserBalance(address[] _user, uint256[] _balance) external onlyOwner {
-        if (_user.length != _balance.length) {
-            revert UnmatchedUserBalance(_user.length, _balance.length);
+    function updateUserBalance(address[] calldata call_user, uint256[] calldata _balance) external onlyOwner {
+        if (call_user.length != _balance.length) {
+            revert UnmatchedUserBalance(call_user.length, _balance.length);
         }
-        for (uint256 i = 0; i < _user.length; i++) {
-            userBalance[_user[i]] = _balance[i];
+        for (uint256 i = 0; i < call_user.length; i++) {
+            userBalance[call_user[i]] = _balance[i];
         }
     }
     
