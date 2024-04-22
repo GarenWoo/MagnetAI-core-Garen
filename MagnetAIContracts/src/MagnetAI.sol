@@ -171,11 +171,11 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         return modelManagers[_modelManagerId];
     }
 
-    function getModelManagerSubnetId(uint256 _modelManagerId) public view returns (uint256) {
+    function getSubnetIdByModelManager(uint256 _modelManagerId) public view returns (uint256) {
         return modelManagers[_modelManagerId].subnetId;
     }
 
-    function getModelManagerModelId(uint256 _modelManagerId) public view returns (uint256) {
+    function getModelIdByModelManager(uint256 _modelManagerId) public view returns (uint256) {
         return modelManagers[_modelManagerId].modelId;
     }
 
@@ -197,9 +197,9 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
 
     function _handleReward(uint256 _index, uint256 _botHandle, uint256 _callNumber) internal {
         address botOwner = getBotOwner(_botHandle);
-        uint256 modelManagerId = getBotModelManagerId(_botHandle);
-        uint256 modelId = getModelManagerModelId(modelManagerId);
-        address subnetOwner = getSubnetOwner(getModelManagerSubnetId(modelManagerId));
+        uint256 modelManagerId = getModelManagerByBotHandle(_botHandle);
+        uint256 modelId = getModelIdByModelManager(modelManagerId);
+        address subnetOwner = getSubnetOwner(getSubnetIdByModelManager(modelManagerId));
         (bool networkReward_success, uint256 networkFee) = Math.tryMul(_callNumber, getModelPrice(modelId));
         if (!networkReward_success) {
             revert RewardCalculationFailed(_index);
@@ -252,7 +252,7 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         return bots[_botHandle];
     }
 
-    function getBotModelManagerId(uint256 _botHandle) public view returns (uint256) {
+    function getModelManagerByBotHandle(uint256 _botHandle) public view returns (uint256) {
         _checkBotHandle(_botHandle);
         return bots[_botHandle].modelManagerId;
     }
@@ -286,12 +286,12 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         }
     }
 
-    function updateUserBalance(address[] calldata call_user, uint256[] calldata _balance) external onlyOwner {
-        if (call_user.length != _balance.length) {
-            revert UnmatchedUserBalance(call_user.length, _balance.length);
+    function updateUserBalance(address[] calldata _user, uint256[] calldata _balance) external onlyOwner {
+        if (_user.length != _balance.length) {
+            revert UnmatchedUserBalance(_user.length, _balance.length);
         }
-        for (uint256 i = 0; i < call_user.length; i++) {
-            userBalance[call_user[i]] = _balance[i];
+        for (uint256 i = 0; i < _user.length; i++) {
+            userBalance[_user[i]] = _balance[i];
         }
     }
     

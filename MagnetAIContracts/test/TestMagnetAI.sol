@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import {Test, console} from "forge-std/Test.sol";
 import "../src/MagnetAI.sol";
 
-contract TestOrderSystem is Test {
+contract TestMagnetAI is Test {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
