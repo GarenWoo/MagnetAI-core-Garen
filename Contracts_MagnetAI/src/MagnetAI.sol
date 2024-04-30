@@ -1,17 +1,15 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./interfaces/IMagnetAI.sol";
 
 // TODO: Consider the functionality of the bot deletion in the future.
-contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
-    uint256 private _modelIdNonce;
+contract MagnetAI is IMagnetAI, Ownable {
     uint256 private _subnetIdNounce;
     uint256 private _modelManagerIdNounce;
     // State Variables for Order System
-    mapping(uint256 modelId => AIModel model) public models;
+    mapping(string modelHandle => AIModel model) public models;
     mapping(uint256 subnetId => Subnet subnet) public subnets;
     mapping(uint256 modelManagerId => ModelManager modelManager) public modelManagers;
     mapping(string botHandle => Bot bot) public bots;
@@ -22,14 +20,25 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
     mapping(address account => uint256 rewardAmount) public reward;
     mapping(string botHandle => uint256 botRewardAmount) public botReward;
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) {
+        _subnetIdNounce = 1;
+        _modelManagerIdNounce = 1;
+    }
 
     // receive() external payable {}
 
-    modifier onlyModelOwner(uint256 modelId) {
-        address modelOwner = models[modelId].owner;
+    modifier onlyModelOwner(string calldata modelHandle) {
+        address modelOwner = models[modelHandle].owner;
         if (msg.sender != modelOwner) {
             revert NotModelOwner(msg.sender, modelOwner);
+        }
+        _;
+    }
+
+    modifier onlySubnetOwner(uint256 subnetId) {
+        address subnetOwner = subnets[subnetId].owner;
+        if (msg.sender != subnetOwner) {
+            revert NotSubnetOwner(msg.sender, subnetOwner);
         }
         _;
     }
@@ -51,36 +60,37 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
     }
 
     // ———————————————————————————————————————— AI Model ————————————————————————————————————————
-    function registerModel(string calldata metadata, uint256 price) external onlyOwner {
+    function registerModel(string calldata modelHandle, string calldata metadata, uint256 price) external onlyOwner {
+        _isValidModelHandle(modelHandle);
         AIModel memory model = AIModel({
-            modelId: _modelIdNonce,
+            modelHandle: modelHandle,
             owner: msg.sender,
             metadata: metadata,
             price: price
         });
-        models[model.modelId] = model;
-        _modelIdNonce++;
-        emit ModelRegistered(model.modelId, model.owner);
+        models[model.modelHandle] = model;
+        emit ModelRegistered(model.modelHandle, model.owner, model.metadata, model.price);
     }
 
-    function setModelPrice(uint256 modelId, uint256 price) external onlyModelOwner(modelId) {
-        models[modelId].price = price;
-        emit ModelPriceModified(modelId, price);
+    function setModelPrice(string calldata modelHandle, uint256 price) external onlyModelOwner(modelHandle) {
+        models[modelHandle].price = price;
+        emit ModelPriceModified(modelHandle, price);
     }
 
-    // function setModelOwner(uint256 modelId, address newOwner) external onlyOwner returns (bool) {
-    //     models[modelId].owner = newOwner;
-    //     return true;
-    // }
-
-    function getModelPrice(uint256 modelId) public view returns (uint256) {
-        _checkModelId(modelId);
-        return models[modelId].price;
+    function _checkExistenceOfModel(string memory modelHandle) internal view {
+        if (models[modelHandle].owner == address(0)) {
+            revert NonexistentModel(modelHandle);
+        }
     }
-
-    function _checkModelId(uint256 modelId) internal view {
-        if (models[modelId].owner == address(0)) {
-            revert NonexistentModel(modelId);
+    
+    function _isValidModelHandle(string memory modelHandle) internal view {
+        if (models[modelHandle].owner != address(0)) {
+            revert ModelHandleHasExisted(modelHandle);
+        }
+        bytes memory modelHandle_Bytes = bytes(modelHandle);
+        uint256 modelHandle_BytesLength = modelHandle_Bytes.length;
+        if (modelHandle_BytesLength > 64 || modelHandle_BytesLength == 0) {
+            revert invalidModelHandle();
         }
     }
 
@@ -92,36 +102,30 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         emit SubnetRegistered(subnet.subnetId, subnet.owner);
     }
 
-    // function setSubnetOwner(uint256 subnetId, address newOwner) external onlyOwner returns (bool) {
-    //     subnets[subnetId].owner = newOwner;
-    //     return true;
-    // }
-
     function getSubnetOwner(uint256 subnetId) public view returns (address) {
-        _checkSubnetId(subnetId);
+        _checkExistenceOfSubnet(subnetId);
         return subnets[subnetId].owner;
     }
 
-    function _checkSubnetId(uint256 subnetId) internal view {
+    function _checkExistenceOfSubnet(uint256 subnetId) internal view {
         if (subnets[subnetId].owner == address(0)) {
             revert NonexistentSubnet(subnetId);
         }
     }
 
     // ———————————————————————————————————————— Model Manager ————————————————————————————————————————
-    function registerModelManager(uint256 modelId, uint256 subnetId, string calldata url) external onlyOwner {
-        _checkModelId(modelId);
-        _checkSubnetId(subnetId);
+    function registerModelManager(string calldata modelHandle, uint256 subnetId, string calldata url) external onlySubnetOwner(subnetId) {
+        _checkExistenceOfModel(modelHandle);
         ModelManager memory modelManager = ModelManager({
             modelManagerId: _modelManagerIdNounce,
             subnetId: subnetId,
-            modelId: modelId,
+            modelHandle: modelHandle,
             owner: msg.sender,
             url: url
         });
         modelManagers[modelManager.modelManagerId] = modelManager;
         _modelManagerIdNounce++;
-        emit ModelManagerRegistered(modelManager.modelManagerId, modelManager.owner);
+        emit ModelManagerRegistered(modelManager.modelManagerId, modelManager.subnetId, modelManager.modelHandle, modelManager.owner, modelManager.url);
     }
 
     function setModelManagerUrl(uint256 modelManagerId, string calldata newUrl)
@@ -132,41 +136,30 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         emit ModelManagerUrlModified(modelManagerId, newUrl);
     }
 
-    // function setModelManagerOwner(uint256 modelManagerId, address newOwner) external onlyOwner returns (bool) {
-    //     modelManagers[modelManagerId].owner = newOwner;
-    //     return true;
-    // }
-
     function submitServiceProof(
+        uint256 modelManagerId,
         string[] calldata botHandleArray,
         uint256[] calldata workloadArray,
         uint256[] calldata callNumberArray,
         uint256[][] calldata value
-    ) external {
+    ) external onlyModelManagerOwner(modelManagerId) {
         _checkServiceProof(botHandleArray, workloadArray, callNumberArray, value);
         for (uint256 i = 0; i < botHandleArray.length; i++) {
             string memory botHandle = botHandleArray[i];
-            _checkBotHandle(botHandle);
+            _checkProofSubmitter(botHandle);
             botUsage[botHandle].workload += workloadArray[i];
             botUsage[botHandle].callNumber += callNumberArray[i];
-            address botOwner = getBotOwner(botHandle);
-            uint256 modelManagerId = getModelManagerByBotHandle(botHandle);
             address subnetOwner = getSubnetOwner(getSubnetIdByModelManager(modelManagerId));
             reward[subnetOwner] += value[i][0];
-            issuance[botHandle] == address(0) ? reward[botOwner] += value[i][1] : botReward[botHandle] += value[i][1];
+            issuance[botHandle] == address(0) ? reward[getBotOwner(botHandle)] += value[i][1] : botReward[botHandle] += value[i][1];
         }
-        // emit ServiceProofSubmitted(botHandleArray, workloadArray, callNumberArray);
     }
 
     function getSubnetIdByModelManager(uint256 modelManagerId) public view returns (uint256) {
         return modelManagers[modelManagerId].subnetId;
     }
 
-    function getModelIdByModelManager(uint256 modelManagerId) public view returns (uint256) {
-        return modelManagers[modelManagerId].modelId;
-    }
-
-    function _checkModelManagerId(uint256 modelManagerId) internal view {
+    function _checkExistenceOfModelManager(uint256 modelManagerId) internal view {
         if (modelManagers[modelManagerId].owner == address(0)) {
             revert NonexistentModelManager(modelManagerId);
         }
@@ -178,8 +171,15 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         uint256[] memory callNumberArray,
         uint256[][] memory value
     ) internal pure {
-        if (botHandleArray.length != workloadArray.length || botHandleArray.length != callNumberArray.length || botHandleArray.length != value.length) {
-            revert UnmatchedProof(botHandleArray.length, workloadArray.length, callNumberArray.length, value.length);
+        if (botHandleArray.length == 0 || botHandleArray.length != workloadArray.length || botHandleArray.length != callNumberArray.length || botHandleArray.length != value.length) {
+            revert InvalidProof(botHandleArray.length, workloadArray.length, callNumberArray.length, value.length);
+        }
+    }
+
+    function _checkProofSubmitter(string memory botHandle) internal view {
+        address validModelManagerOwner = getModelManagerOwnerByBotHandle(botHandle);
+        if (msg.sender != validModelManagerOwner) {
+            revert InvalidBotHandleOfProof(botHandle, validModelManagerOwner, msg.sender);
         }
     }
 
@@ -188,7 +188,7 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         external
     {
         _isValidBotHandle(botHandle);
-        _checkModelManagerId(modelManagerId);
+        _checkExistenceOfModelManager(modelManagerId);
         Bot memory bot = Bot({
             botHandle: botHandle,
             modelManagerId: modelManagerId,
@@ -197,7 +197,7 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
             price: price
         });
         bots[bot.botHandle] = bot;
-        emit BotCreated(bot.owner, bot.botHandle, bot.modelManagerId);
+        emit BotCreated(bot.botHandle, bot.modelManagerId, bot.owner, bot.metadata, bot.price);
     }
 
     function setBotPrice(string calldata botHandle, uint256 price) external onlyBotOwner(botHandle) {
@@ -207,7 +207,7 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
     }
 
     function followBot(string calldata botHandle) external {
-        _checkBotHandle(botHandle);
+        _checkExistenceOfBot(botHandle);
         emit BotFollowed(botHandle, msg.sender);
     }
 
@@ -216,24 +216,21 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         emit BotPayment(msg.sender, msg.value);
     }
 
-    function getModelManagerByBotHandle(string memory botHandle) public view returns (uint256) {
-        _checkBotHandle(botHandle);
-        return bots[botHandle].modelManagerId;
-    }
-
     function getBotOwner(string memory botHandle) public view returns (address) {
-        _checkBotHandle(botHandle);
+        _checkExistenceOfBot(botHandle);
         return bots[botHandle].owner;
     }
 
-    function getBotPrice(string memory botHandle) public view returns (uint256) {
-        _checkBotHandle(botHandle);
-        return bots[botHandle].price;
+    function getModelManagerOwnerByBotHandle(string memory botHandle) public view returns (address) {
+        _checkExistenceOfBot(botHandle);
+        uint256 modelManagerId = bots[botHandle].modelManagerId;
+        ModelManager memory modelManager = modelManagers[modelManagerId];
+        return modelManager.owner;
     }
 
-    function _checkBotHandle(string memory botHandle) internal view {
+    function _checkExistenceOfBot(string memory botHandle) internal view {
         if (bots[botHandle].owner == address(0)) {
-            revert NonexistentBotHandle(botHandle);
+            revert NonexistentBot(botHandle);
         }
     }
 
@@ -243,7 +240,7 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         }
         bytes memory botHandle_Bytes = bytes(botHandle);
         uint256 botHandle_BytesLength = botHandle_Bytes.length;
-        if (botHandle_BytesLength > 18) {
+        if (botHandle_BytesLength > 32 || botHandle_BytesLength == 0) {
             revert invalidBotHandle();
         }
         for (uint256 i = 0; i < botHandle_BytesLength; i++) {
@@ -270,11 +267,12 @@ contract MagnetAI is IMagnetAI, Ownable, ReentrancyGuard {
         if (!claimSuccess) {
             revert ETHTransferFailed(msg.sender, rewardValue);
         }
+        emit RewardClaimed(msg.sender, rewardValue);
     }
 
     function updateUserBalance(address[] calldata user, uint256[] calldata balance) external onlyOwner {
         if (user.length != balance.length) {
-            revert UnmatchedUserBalance(user.length, balance.length);
+            revert InvalidUpdateOfUserBalance(user.length, balance.length);
         }
         for (uint256 i = 0; i < user.length; i++) {
             userBalance[user[i]] = balance[i];
