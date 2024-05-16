@@ -1,2 +1,3 @@
-# MagnetAI-core
-A unique repository for MegnetAI-core
+# Contract: MagnetAI
+
+
