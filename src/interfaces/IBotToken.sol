@@ -16,7 +16,7 @@ interface IBotToken {
     }
 
     // Events
-    event TokenMint(uint256 timestamp, address user, uint256 tokenAmount, uint256 price);
+    event TokenMinted(uint256 timestamp, address user, uint256 amount, uint256 mintedAmount, uint256 price);
     event MintWithdrawal(uint256 timestamp, address user, address paymentToken, uint256 withdrawal);
     event TokenClaimed(address user, uint256 actualMintedAmount, uint256 refund);
 
@@ -33,12 +33,11 @@ interface IBotToken {
     error NotLocked(uint256 totalMintedAmount, uint256 maxSupply, uint256 currentTime, uint256 endTime);
     error NotInOngoingPhase(uint256 totalMintedAmount, uint256 maxSupply, uint256 currentTime, uint256 endTime);
     error NotEnded(uint256 totalMintedAmount, uint256 maxSupply, uint256 currentTime, uint256 endTime);
-    error TokenPaymentFailed(address tokenAddress, uint256 payment);
     error InsufficientETHPaid(uint256 payment, uint256 requiredPayment);
-    error RefundFailed(address paymentToken, address recipient, uint256 value);
     error NoneMinted(address caller);
     error ETHTranferFailed(address recipient, uint256 value);
-    error tokenTransferFailed(address tokenAddress, address recipient, uint256 tokenAmount);
+    error AssetTransferFailed(address tokenAddress, address from, address recipient, uint256 tokenAmount);
+    error ETHTransferWithFrom(address paymentToken, address from);
 
     // Functions
     function mint(uint256 amount, uint256 price) external payable;

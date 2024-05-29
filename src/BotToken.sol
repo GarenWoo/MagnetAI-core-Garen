@@ -17,7 +17,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
     uint32 public constant airdropRound = 604800; // 7 days(unit: second)
     uint32 public constant slotDuration = 3600; // 1 hour(unit: second)
     uint24 public constant delayDuration = 86400; // 24 hours(unit: second)
-    uint8 public immutable chatToEarnRatio;
+    uint8 public immutable airdropRatio;
     uint8 public immutable airdropPercentagePerRound;
     uint256 public immutable pricePerThousandTokens;
     uint256 public immutable mintPriceIncrement;
@@ -28,7 +28,6 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
     uint256 public totalUsage;
     uint256 public paymentOfOngoingPhase;
     uint256 public mintablePrice;
-    mapping(address user => uint256 amount) public refundPool;
     mapping(address user => Mint mint) public mints;
     mapping(address user => bool isFollowing) public followers;
     mapping(address user => uint256 callNumber) public userUsage;
@@ -47,7 +46,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
         botHandle = stringData[0];
         maxSupply = uintData[0];
         issuanceStartTime = uint32(uintData[1]);
-        chatToEarnRatio = uint8(uintData[2]);
+        airdropRatio = uint8(uintData[2]);
         airdropPercentagePerRound = uint8(uintData[3]);
         pricePerThousandTokens = uintData[4];
         mintPriceIncrement = _mintPriceIncrement;
@@ -107,75 +106,87 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
     function mint(uint256 amount, uint256 price) external payable onlyWithinIssuance {
         // Get the timestamp of the start of the current slot
         uint256 currentSlot = calculateCurrentSlotStartTime();
+        // Declare `excess` to record the excessive amount of minted token
+        uint256 excess;
+        // Declare `payment` to record the correct amount of token that `msg.sender` should pay
+        uint256 payment;
+        // Check `amount`
+        _checkMintAmount(amount);
+        // Check `price`
+        _checkMintPrice(price, currentSlot, amount);
+        // Get the values of latest mint of `msg.sender`
+        uint256 amountOfPreviousMint = mints[msg.sender].amount;
+        uint256 priceOfPreviousMint = mints[msg.sender].price;
         // Judge if the current mint is the first one in the current slot
         if (mints[headOfCurrentSlot].slot != currentSlot) {
             headOfCurrentSlot = msg.sender;
             mints[msg.sender].next = address(0);
             totalConfirmedAmount = totalMintedAmount;
             totalConfirmedPayment = totalPayment;
-        }
-        // Check `amount`
-        _checkMintAmount(amount);
-        // Check `price`
-        _checkMintPrice(price, currentSlot, amount);
-        // Declare `payment` to record the correct amount of token that `msg.sender` should pay
-        uint256 payment;
-        // Get the values of latest mint of `msg.sender`
-        uint256 amountOfPreviousMint = mints[msg.sender].amount;
-        uint256 priceOfPreviousMint = mints[msg.sender].price;
-        // Check if there is an another, earlier, mint of `msg.sender` in the same slot
-        if (mints[msg.sender].slot == currentSlot) {
-            if (amount < amountOfPreviousMint) {
-                revert LessMintAmount(amount, amountOfPreviousMint);
+            uint256 amountAfterCurrentMint = totalMintedAmount + amount;
+            if (amountAfterCurrentMint >= maxSupply) {
+                if (amountAfterCurrentMint > maxSupply) {
+                    excess = amountAfterCurrentMint - maxSupply;
+                    // Refund
+                    _transferAsset(address(0), msg.sender, excess * price);
+                }
+                mintablePrice = price + mintPriceIncrement;
             }
-            // The check of `price` has been done in {_checkMintPrice}
-            if (amount == amountOfPreviousMint && price == priceOfPreviousMint) {
-                revert DuplicateMint(amount, price);
-            }
-            payment = amount * price - amountOfPreviousMint * priceOfPreviousMint;
-            totalMintedAmount += amount - amountOfPreviousMint;
-            totalPayment += payment;
-        } else {
             payment = amount * price;
             mints[msg.sender].confirmedAmount += amountOfPreviousMint;
             mints[msg.sender].confirmedPayment += amountOfPreviousMint * priceOfPreviousMint;
-            totalMintedAmount += amount;
-            totalPayment += payment;
+            totalMintedAmount += amount - excess;
+            totalPayment += payment - excess * price;
+        } else {
+            // Check if there is an another, earlier, mint of `msg.sender` in the same slot
+            if (mints[msg.sender].slot == currentSlot) {
+                if (amount < amountOfPreviousMint) {
+                    revert LessMintAmount(amount, amountOfPreviousMint);
+                }
+                // The check of `price` has been done in {_checkMintPrice}
+                if (amount == amountOfPreviousMint && price == priceOfPreviousMint) {
+                    revert DuplicateMint(amount, price);
+                }
+                payment = amount * price - amountOfPreviousMint * priceOfPreviousMint;
+                totalMintedAmount += amount - amountOfPreviousMint;
+                totalPayment += payment;
+            } else {
+                payment = amount * price;
+                mints[msg.sender].confirmedAmount += amountOfPreviousMint;
+                mints[msg.sender].confirmedPayment += amountOfPreviousMint * priceOfPreviousMint;
+                totalMintedAmount += amount;
+                totalPayment += payment;
+            }
+
+            // Insertion sorting of the mints of the current slot considering the current mint
+            excess = _sortMints(price, currentSlot, amount);
         }
-        _sortMints(price, currentSlot);
+
         // Check `msg.value` or excute ERC20 token transfer
         if (paymentToken == address(0)) {
             if (msg.value < payment) {
                 revert InsufficientETHPaid(msg.value, payment);
             }
             if (msg.value > payment) {
-                uint256 refund = msg.value - payment;
-                (bool success,) = payable(msg.sender).call{value: refund}("");
-                if (!success) {
-                    revert RefundFailed(paymentToken, msg.sender, refund);
-                }
+                // Refund the excessive payment of the current mint
+                _transferAsset(address(0), msg.sender, msg.value - payment);
             }
         } else {
-            // If `payment` is not `address(0)`, conduct the ERC20 token transfer
-            // 0x23b872dd == bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
-            (bool transferSuccess, bytes memory data) =
-                paymentToken.call(abi.encodeWithSelector(0x23b872dd, msg.sender, address(this), payment));
-            if (!(transferSuccess && (data.length == 0 || abi.decode(data, (bool))))) {
-                revert TokenPaymentFailed(paymentToken, payment);
-            }
+            // ERC20 token tranferred from `msg.sender` to `address(this)`
+            _transferAsset(msg.sender, address(this), payment);
         }
+
         // Updates fields of the instance of struct `Mint` of `msg.sender`
-        mints[msg.sender].amount = amount;
+        mints[msg.sender].amount = amount - excess;
         mints[msg.sender].price = price;
         mints[msg.sender].slot = currentSlot;
-        // After the execution of the mint, updates state variables
-        if (totalMintedAmount >= maxSupply) {
-            (, mintablePrice,,,) = getLastFinalistData();
-        }
+
+        // Check the status of the token issuance
         if (totalMintedAmount >= maxSupply && issuanceEndTime == 0) {
             issuanceEndTime = uint32(block.timestamp) + delayDuration;
         }
-        emit TokenMint(block.timestamp, msg.sender, amount, price);
+        
+        emit TokenMinted(block.timestamp, msg.sender, amount, amount - excess, price);
     }
 
     function withdrawMint() external onlyOngoing {
@@ -206,7 +217,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
         delete mints[msg.sender];
 
         // Withdraw payment
-        _transferToken(msg.sender, _totalPayment);
+        _transferAsset(address(0), msg.sender, _totalPayment);
         emit MintWithdrawal(block.timestamp, msg.sender, paymentToken, _totalPayment);
     }
 
@@ -229,13 +240,14 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
             // If `price` is definitely lower than `priceOfLastFinalist`, refund (`amount` * `price`) to `msg.sender`
             if (price < priceOfLastFinalist) {
                 actualMintedAmount = mints[msg.sender].confirmedAmount;
-                refund = amount * price + refundPool[msg.sender];
+                refund = amount * price;
             }
             if (price > priceOfLastFinalist) {
                 actualMintedAmount = totalAmount;
             }
             if (price == priceOfLastFinalist) {
-                (address lastFinalist,, uint256 amountBeforeLastFinalist, mintedAmount, refund) = getLastFinalistData();
+                (address lastFinalist,, uint256 amountBeforeLastFinalist, uint256 mintedAmount, uint256 refund) =
+                    getLastFinalistData();
                 if (lastFinalist == msg.sender) {
                     uint256 amountAfterLastFinalist = amount + amountBeforeLastFinalist;
                     // Assume that `amountAfterLastFinalist` cannot be less than `maxSupply`
@@ -266,7 +278,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
 
         // Execute refund of unsuccessful mint
         if (refund != 0) {
-            _transferToken(msg.sender, refund);
+            _transferAsset(address(0), msg.sender, refund);
         }
 
         emit TokenClaimed(msg.sender, actualMintedAmount, refund);
@@ -284,18 +296,28 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
         }
     }
 
-    function _transferToken(address recipient, uint256 tokenAmount) internal {
+    function _transferAsset(address from, address recipient, uint256 tokenAmount) internal {
         if (paymentToken == address(0)) {
-            (bool ETHSuccess,) = payable(recipient).call{value: tokenAmount}("");
-            if (!ETHSuccess) {
+            if (from != address(0)) {
+                revert ETHTransferWithFrom(paymentToken, from);
+            }
+            (bool ETHTransferSuccess,) = payable(recipient).call{value: tokenAmount}("");
+            if (!ETHTransferSuccess) {
                 revert ETHTranferFailed(recipient, tokenAmount);
             }
         } else {
-            // 0xa9059cbb == bytes4(keccak256(bytes('transfer(address,uint256)')));
-            (bool tokenSuccess, bytes memory data) =
-                paymentToken.call(abi.encodeWithSelector(0xa9059cbb, recipient, tokenAmount));
-            if (!(tokenSuccess && (data.length == 0 || abi.decode(data, (bool))))) {
-                revert tokenTransferFailed(paymentToken, recipient, tokenAmount);
+            bool TransferSuccess;
+            bytes memory data;
+            if (from != address(0)) {
+                // 0x23b872dd == bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
+                (TransferSuccess, data) =
+                    paymentToken.call(abi.encodeWithSelector(0x23b872dd, from, recipient, tokenAmount));
+            } else {
+                // 0xa9059cbb == bytes4(keccak256(bytes('transfer(address,uint256)')));
+                (TransferSuccess, data) = paymentToken.call(abi.encodeWithSelector(0xa9059cbb, recipient, tokenAmount));
+            }
+            if (!(TransferSuccess && (data.length == 0 || abi.decode(data, (bool))))) {
+                revert AssetTransferFailed(paymentToken, from, recipient, tokenAmount);
             }
         }
     }
@@ -336,86 +358,108 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
      * @dev Assume the price of the current mint is higher than any previous ones in the same slot, because price check has been done in
      * the preceding code of {mint}.
      */
-    function _sortMints(uint256 price, uint256 currentSlot) internal {
+    function _sortMints(uint256 price, uint256 currentSlot, uint256 amount) internal returns (uint256) {
         // Declare `result` which means the `next` of the mint of `msg.sender`(this will be `msg.sender` itself when its position does not change in sorting)
         address result;
+        // Declare `excess` to record the excessive amount of minted token
+        uint256 excess;
         if (msg.sender == headOfCurrentSlot) {
-            // When `msg.sender` has already been `headOfCurrentSlot`, nothing need to be done
+            // In this case, `msg.sender` has already minted with the highest price in the current slot
             result = msg.sender;
-        } else if (price > mints[headOfCurrentSlot].price) {
-            // When the price of the current mint exceed the one of `headOfCurrentSlot`, `msg.sender` is the new `headOfCurrentSlot`
-            address preHead = headOfCurrentSlot;
-            headOfCurrentSlot = msg.sender;
-            result = preHead;
+            uint256 amountAfterCurrentMint = totalMintedAmount + amount;
+            if (amountAfterCurrentMint >= maxSupply) {
+                if (amountAfterCurrentMint > maxSupply) {
+                    excess = amountAfterCurrentMint - maxSupply;
+                    // Refund
+                    _transferAsset(address(0), msg.sender, excess * price);
+                    // Update the value of state variables
+                    totalMintedAmount -= excess;
+                    totalPayment -= excess * price;
+                }
+                mintablePrice = price + mintPriceIncrement;
+            }
         } else {
             // `insertion` means the "predecessor" of the position where the current mint inserts
             address insertion;
-            address prev;
+            address prev = address(1);
             address current = headOfCurrentSlot;
+            address prior;
             if (totalMintedAmount >= maxSupply) {
-                address prior;
                 uint256 updatedAmount = totalConfirmedAmount;
-                while (updatedAmount < maxSupply) {`
-                    prev = current;
-                    current = mints[current].next;
-                    updatedAmount += mints[current].amount;
+                // Assume that `updatedAmount` must be lower than `maxSupply`
+                while (updatedAmount < maxSupply) {
                     if (price != mints[msg.sender].price) {
+                        // If `price` is larger than the price of `headOfCurrentSlot`, `insertion` will be `address(1)`
                         if (mints[current].price < price && insertion == address(0)) {
                             insertion = prev;
                         }
-                        // Since the token issuance has locked in this case, the loop should proceed until the "last finalist" is found
+                        // In this case, `msg.sender` cannot be `headOfCurrentSlot`, so `prior` cannot be the initial value(i.e. `address(1)`)
                         if (mints[msg.sender].slot == currentSlot && current == msg.sender) {
                             prior = prev;
                         }
                     }
-                }
-                // When `msg.sender` has a previous mint in the current slot and its current mint has a different position in sorting
-                if (prior != address(0) && insertion != address(0) && insertion != prior) {
-                    // Eliminate the old-sorted position of `msg.sender`
-                    mints[prior].next = mints[msg.sender].next;
-                }
-                // address lastFinalist = current;
-                // uint256 priceOfLastFinalist = mints[current].price;
-                if (updatedAmount > maxSupply) {
-                    // Refund the payment corresponding to the excessive amount to `msg.sender`
-                    uint256 refund = (updatedAmount - maxSupply) * mints[current].price;
-                    if (current != msg.sender) {
-                        refundPool[current] += refund;
-                    } else {
-                        _transferToken(current, refund);
-                    }
-                }
-            } else {
-                while (mints[current].slot == currentSlot) {
+                    updatedAmount += mints[current].amount;
                     prev = current;
                     current = mints[current].next;
-                    if (mints[msg.sender].slot != currentSlot) {
-                        if (mints[current].price < price && insertion == address(0)) {
-                            insertion = prev;
-                            break;
-                        }
-                    } else {
-                        if (price != mints[msg.sender].price) {
-                            if (mints[current].price < price && insertion == address(0)) {
-                                insertion = prev;
-                            }
-                            if (current == msg.sender) {
-                                break;
-                            }
-                        }
+                }
+                uint256 priceOfLastFinalist = mints[prev].price;
+                if (updatedAmount > maxSupply) {
+                    if (prev == msg.sender) {
+                        excess = updatedAmount - maxSupply;
+                        // Refund
+                        _transferAsset(address(0), msg.sender, excess * priceOfLastFinalist);
+                        // Update the value of state variables
+                        totalMintedAmount -= excess;
+                        totalPayment -= excess * priceOfLastFinalist;
                     }
                 }
-                if (insertion != address(0) && insertion != prev) {
-                    mints[prev].next = mints[msg.sender].next;
+                mintablePrice = priceOfLastFinalist + mintPriceIncrement;
+            } else {
+                if (mints[msg.sender].slot != currentSlot) {
+                    Mint memory currentMint = mints[current];
+                    while (currentMint.slot == currentSlot && currentMint.price >= price) {
+                        insertion = prev;
+                        prev = current;
+                        current = currentMint.next;
+                        currentMint = mints[current];
+                    }
+                } else if (price != mints[msg.sender].price) {
+                    while (current != msg.sender) {
+                        if (mints[current].price < price && insertion == address(0)) {
+                            insertion = prev;
+                        }
+                        prior = prev;
+                        prev = current;
+                        current = mints[current].next;
+                    }
                 }
             }
-            // After the data processing of local variables
-            // Record the value of the field `next` of the mint of `insertion` by `result` before its value is updated
-            if (mints[mints[insertion].next].slot == currentSlot) {
-                result = insertion != address(0) ? mints[insertion].next : msg.sender;
+            // When `msg.sender` has a previous mint in the current slot and its current mint has a different position in sorting
+            if (prior != address(0) && insertion != address(0) && insertion != prior) {
+                // Eliminate the old-sorted position of `msg.sender` if its postion in sorting has updated to a different one.
+                if (mints[mints[msg.sender].next].slot == currentSlot) {
+                    mints[prior].next = mints[msg.sender].next;
+                } else {
+                    mints[prior].next = address(0);
+                }
             }
+
+            // Record the correct `next` of the current mint of `msg.sender` by the local variable `result`
+            if (insertion == address(1)) {
+                result = headOfCurrentSlot;
+                headOfCurrentSlot = msg.sender;
+            } else {
+                if (insertion != address(0)) {
+                    if (mints[mints[insertion].next].slot == currentSlot) {
+                        result = mints[insertion].next;
+                    }
+                } else {
+                    result = msg.sender;
+                }
+            }
+
             // Execute the update of the field `next` of the mint of `insertion`
-            if (mints[insertion].next != msg.sender && insertion != address(0)) {
+            if (mints[insertion].next != msg.sender && insertion != address(0) && insertion != address(1)) {
                 mints[insertion].next = msg.sender;
             }
         }
@@ -423,6 +467,8 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
         if (result != msg.sender) {
             mints[msg.sender].next = result;
         }
+
+        return excess;
     }
 
     function _sortMintsAfterUserWithdrawal() internal {
