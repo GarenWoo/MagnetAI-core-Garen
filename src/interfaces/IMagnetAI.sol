@@ -120,7 +120,9 @@ interface IMagnetAI {
 
     function followBot(string calldata botHandle) external;
 
-    function payForBot(address tokenAddress, uint256 amount) external;
+    function payForBot(uint256 amount) external;
+
+    function createToken(string[3] calldata stringData, uint256[5] calldata uintData, address paymentToken) external;
 
     function getBotOwner(string memory botHandle) external view returns (address);
 

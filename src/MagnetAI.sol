@@ -8,6 +8,7 @@ import "./interfaces/IBotTokenFactory.sol";
 // TODO: Consider the functionality of the bot deletion in the future.
 contract MagnetAI is IMagnetAI, Ownable {
     address public immutable botTokenFactory;
+    address public immutable USDTAddress;
     // State Variables for Order System
     mapping(string modelHandle => AIModel model) public models;
     mapping(string subnetHandle => Subnet subnet) public subnets;
@@ -24,9 +25,10 @@ contract MagnetAI is IMagnetAI, Ownable {
     address[] public supportedTokens;
     mapping(address account => bool isAuthorized) public isReporter;
 
-    constructor(address _botTokenFactory) Ownable(msg.sender) {
+    constructor(address _botTokenFactory, address _USDTAddress) Ownable(msg.sender) {
         supportedTokens.push(address(0));
         botTokenFactory = _botTokenFactory;
+        USDTAddress = _USDTAddress;
     }
 
     // receive() external payable {}
@@ -307,9 +309,16 @@ contract MagnetAI is IMagnetAI, Ownable {
             revert InvalidBotHandle();
         }
         _checkExistenceOfModelManager(modelManagerId);
-        // The bot price should not exceed 100 for per message of chat
-        if (price > 100) {
-            revert ExcessiveBotPrice(price, 100);
+        // Note the address of USDT should be checked when this contract is under deployment
+        // address USDTAddr = 0xdac17f958d2ee523a2206206994597c13d831ec7;   // USDT on Ethereum mainnet
+        // The bot price should not exceed 100 * 10 ** `decimals` for per message of chat
+        // (bool successOfCall, bytes memory dataOfCall) = USDTAddr.staticcall(abi.encodeWithSelector(0x313ce567)); // "decimals()"
+        // require(successOfCall, "Fail to get decimals");
+        // uint8 decimals = abi.decode(dataOfCall, (uint));
+        uint8 decimals = 6;
+        uint256 maxPrice = 100 * 10 ** decimals;
+        if (price > maxPrice) {
+            revert ExcessiveBotPrice(price, maxPrice);
         }
         Bot memory bot = Bot({
             botHandle: botHandle,
@@ -333,16 +342,13 @@ contract MagnetAI is IMagnetAI, Ownable {
         emit BotFollowed(botHandle, msg.sender);
     }
 
-    function payForBot(address tokenAddress, uint256 amount) external {
-        if (indexOfSupportedToken[tokenAddress] == 0) {
-            revert UnsupportedToken(tokenAddress);
-        }
+    function payForBot(uint256 amount) external {
         if (amount == 0) {
             revert InvalidPayment();
         }
-        // bytes4(keccak256(bytes('transferFrom(address,address,uint256)'))) == 0x23b872dd;
+        // 0x23b872dd == bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
         (bool success, bytes memory data) =
-            tokenAddress.call(abi.encodeWithSelector(0x23b872dd, msg.sender, address(this), amount));
+            USDTAddress.call(abi.encodeWithSelector(0x23b872dd, msg.sender, address(this), amount));
         if (!(success && (data.length == 0 || abi.decode(data, (bool))))) {
             revert TokenTransferFailed(amount);
         }
@@ -357,14 +363,13 @@ contract MagnetAI is IMagnetAI, Ownable {
      * `stringData[0]` == `botHandle`;
      * `stringData[1]` == `name`;
      * `stringData[2]` == `symbol`;
-     * `uintData[0]` == `decimals`;
-     * `uintData[1]` == `maxSupply`;
-     * `uintData[2]` == `auctionStartTime`;
-     * `uintData[3]` == `chatToEarnRatio`;
-     * `uintData[4]` == `airdropPercentagePerRound`;
-     * `uintData[5]` == `pricePerThousandTokens`;
+     * `uintData[0]` == `maxSupply`;
+     * `uintData[1]` == `issuanceStartTime`;
+     * `uintData[2]` == `chatToEarnRatio`;
+     * `uintData[3]` == `airdropPercentagePerRound`;
+     * `uintData[4]` == `pricePerThousandTokens`;
      */
-    function createToken(string[3] calldata stringData, uint256[6] calldata uintData, address bidTokenAddress)
+    function createToken(string[3] calldata stringData, uint256[5] calldata uintData, address paymentToken)
         external
         onlyBotOwner(stringData[0])
     {
@@ -373,7 +378,10 @@ contract MagnetAI is IMagnetAI, Ownable {
         if (createdBotTokens[botHandle] != address(0)) {
             revert BotTokenHasCreated(botHandle, createdBotTokens[botHandle]);
         }
-        address botTokenAddress = IBotTokenFactory(botTokenFactory).createToken(stringData, uintData, bidTokenAddress);
+        if (indexOfSupportedToken[paymentToken] == 0) {
+            revert UnsupportedToken(paymentToken);
+        }
+        address botTokenAddress = IBotTokenFactory(botTokenFactory).createToken(stringData, uintData, bots[botHandle].owner, paymentToken);
         createdBotTokens[botHandle] = botTokenAddress;
         emit BotTokenCreated(botHandle, botTokenAddress);
     }
@@ -467,7 +475,7 @@ contract MagnetAI is IMagnetAI, Ownable {
         emit SupportedTokenRemoved(removedToken);
     }
 
-    function checkSupportOfToken(address tokenAddress) public view returns (bool isSupported) {
+    function checkSupportOfToken(address tokenAddress) external view returns (bool isSupported) {
         isSupported = indexOfSupportedToken[tokenAddress] != 0;
     }
 }

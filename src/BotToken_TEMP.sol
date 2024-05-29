@@ -235,7 +235,13 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
                 actualMintedAmount = totalAmount;
             }
             if (price == priceOfLastFinalist) {
-                (address lastFinalist,, uint256 amountBeforeLastFinalist, mintedAmount, refund) = getLastFinalistData();
+                (
+                    address lastFinalist,
+                    ,
+                    uint256 amountBeforeLastFinalist,
+                    uint256 mintedAmount,
+                    uint256 refundOfLastFinalist
+                ) = getLastFinalistData();
                 if (lastFinalist == msg.sender) {
                     uint256 amountAfterLastFinalist = amount + amountBeforeLastFinalist;
                     // Assume that `amountAfterLastFinalist` cannot be less than `maxSupply`
@@ -342,11 +348,6 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
         if (msg.sender == headOfCurrentSlot) {
             // When `msg.sender` has already been `headOfCurrentSlot`, nothing need to be done
             result = msg.sender;
-        } else if (price > mints[headOfCurrentSlot].price) {
-            // When the price of the current mint exceed the one of `headOfCurrentSlot`, `msg.sender` is the new `headOfCurrentSlot`
-            address preHead = headOfCurrentSlot;
-            headOfCurrentSlot = msg.sender;
-            result = preHead;
         } else {
             // `insertion` means the "predecessor" of the position where the current mint inserts
             address insertion;
@@ -355,10 +356,8 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
             if (totalMintedAmount >= maxSupply) {
                 address prior;
                 uint256 updatedAmount = totalConfirmedAmount;
-                while (updatedAmount < maxSupply) {`
-                    prev = current;
-                    current = mints[current].next;
-                    updatedAmount += mints[current].amount;
+                while (updatedAmount < maxSupply) {
+                    
                     if (price != mints[msg.sender].price) {
                         if (mints[current].price < price && insertion == address(0)) {
                             insertion = prev;
@@ -368,6 +367,9 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
                             prior = prev;
                         }
                     }
+                    updatedAmount += mints[current].amount;
+                    prev = current;
+                    current = mints[current].next;
                 }
                 // When `msg.sender` has a previous mint in the current slot and its current mint has a different position in sorting
                 if (prior != address(0) && insertion != address(0) && insertion != prior) {
@@ -386,16 +388,20 @@ contract BotToken is IBotToken, ERC20, ERC20Permit {
                     }
                 }
             } else {
-                while (mints[current].slot == currentSlot) {
-                    prev = current;
-                    current = mints[current].next;
-                    if (mints[msg.sender].slot != currentSlot) {
+                if (mints[msg.sender].slot != currentSlot) {
+                    while (mints[current].slot == currentSlot) {
+                        prev = current;
+                        current = mints[current].next;
                         if (mints[current].price < price && insertion == address(0)) {
                             insertion = prev;
                             break;
                         }
-                    } else {
-                        if (price != mints[msg.sender].price) {
+                    }
+                } else {
+                    if (price != mints[msg.sender].price) {
+                        while (mints[current].slot == currentSlot) {
+                            prev = current;
+                            current = mints[current].next;
                             if (mints[current].price < price && insertion == address(0)) {
                                 insertion = prev;
                             }
