@@ -18,7 +18,8 @@ interface IBotToken {
     // Events
     event TokenMinted(uint256 timestamp, address user, uint256 amount, uint256 mintedAmount, uint256 price);
     event MintWithdrawal(uint256 timestamp, address user, address paymentToken, uint256 withdrawal);
-    event TokenClaimed(address user, uint256 actualMintedAmount, uint256 refund);
+    event TokenClaimed(address claimant, uint256 actualMintedAmount, uint256 refund);
+    event FundClaimed(address claimant, uint256 claimedPayment);
 
     // Errors
     error NotMagnetAI(address caller);
@@ -27,23 +28,22 @@ interface IBotToken {
     error IssuanceHasEnded(uint256 currentTime, uint256 endTime);
     error InvalidAmount(uint256 amount);
     error InvalidPrice(uint256 mintPrice, uint256 mintIncrement);
-    error InsufficientPriceOfMint(uint256 mintPrice, uint256 basePrice);
     error LessMintAmount(uint256 currentAmount, uint256 previousAmount);
     error DuplicateMint(uint256 currentAmount, uint256 currentPrice);
-    error NotLocked(uint256 totalMintedAmount, uint256 maxSupply, uint256 currentTime, uint256 endTime);
     error NotInOngoingPhase(uint256 totalMintedAmount, uint256 maxSupply, uint256 currentTime, uint256 endTime);
     error NotEnded(uint256 totalMintedAmount, uint256 maxSupply, uint256 currentTime, uint256 endTime);
-    error InsufficientETHPaid(uint256 payment, uint256 requiredPayment);
+    error InsufficientETHPaid(uint256 paidAmount, uint256 payables);
     error NoneMinted(address caller);
-    error ETHTranferFailed(address recipient, uint256 value);
     error AssetTransferFailed(address tokenAddress, address from, address recipient, uint256 tokenAmount);
     error ETHTransferWithFrom(address paymentToken, address from);
+    error FundHasClaimed();
 
     // Functions
     function mint(uint256 amount, uint256 price) external payable;
     function withdrawMint() external;
     function claimToken() external;
-    function getLastFinalistData() external view returns (address lastFinalist, uint256 _mintablePrice,  uint256 amountBeforeLastFinalist, uint256 mintedAmount, uint256 refund);
-    function getIssuanceStatus() external view returns (string memory status);
+    function claimFund() external;
     function calculateCurrentSlotStartTime() external view returns (uint256 currentSlot);
+    function getIssuanceStatus() external view returns (string memory status);
+    
 }

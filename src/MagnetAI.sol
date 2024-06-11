@@ -114,7 +114,7 @@ contract MagnetAI is IMagnetAI, Ownable {
         isValidInput = modelHandleBytesLength != 0 && modelHandleBytesLength <= 64;
     }
 
-    function _checkExistenceOfModel(string memory modelHandle) internal view {
+    function _checkExistenceOfModel(string memory modelHandle) private view {
         if (models[modelHandle].owner == address(0)) {
             revert NonexistentModel(modelHandle);
         }
@@ -216,6 +216,7 @@ contract MagnetAI is IMagnetAI, Ownable {
     }
 
     function getModelManagerOwner(string calldata modelManagerId) external view returns (address) {
+        _checkExistenceOfModelManager(modelManagerId);
         return modelManagers[modelManagerId].owner;
     }
 
@@ -248,7 +249,7 @@ contract MagnetAI is IMagnetAI, Ownable {
         uint256[] memory workloadArray,
         uint256[] memory callNumberArray,
         uint256[][] memory value
-    ) internal pure {
+    ) private pure {
         if (
             botHandleArray.length == 0 || botHandleArray.length != workloadArray.length
                 || botHandleArray.length != callNumberArray.length || botHandleArray.length != value.length
@@ -257,7 +258,7 @@ contract MagnetAI is IMagnetAI, Ownable {
         }
     }
 
-    function _validateBotHandleOfServiceProof(string memory botHandle) internal view {
+    function _validateBotHandleOfServiceProof(string memory botHandle) private view {
         // Check the existence of the given `botHandle`
         _checkExistenceOfBot(botHandle);
         // Check the ownership of the `botHandle`(i.e. check if the model manager owns the bot)
@@ -276,7 +277,7 @@ contract MagnetAI is IMagnetAI, Ownable {
         uint256 callNumber,
         uint256 valueOfSubnet,
         uint256 valueOfBot
-    ) internal {
+    ) private {
         _validateBotHandleOfServiceProof(botHandle);
         botUsage[botHandle].workload += workload;
         botUsage[botHandle].callNumber += callNumber;
@@ -288,7 +289,7 @@ contract MagnetAI is IMagnetAI, Ownable {
             : botReward[botHandle] += valueOfBot;
     }
 
-    function _checkExistenceOfModelManager(string memory modelManagerId) internal view {
+    function _checkExistenceOfModelManager(string memory modelManagerId) private view {
         if (modelManagers[modelManagerId].owner == address(0)) {
             revert NonexistentModelManager(modelManagerId);
         }
@@ -309,17 +310,7 @@ contract MagnetAI is IMagnetAI, Ownable {
             revert InvalidBotHandle();
         }
         _checkExistenceOfModelManager(modelManagerId);
-        // Note the address of USDT should be checked when this contract is under deployment
-        // address USDTAddr = 0xdac17f958d2ee523a2206206994597c13d831ec7;   // USDT on Ethereum mainnet
-        // The bot price should not exceed 100 * 10 ** `decimals` for per message of chat
-        // (bool successOfCall, bytes memory dataOfCall) = USDTAddr.staticcall(abi.encodeWithSelector(0x313ce567)); // "decimals()"
-        // require(successOfCall, "Fail to get decimals");
-        // uint8 decimals = abi.decode(dataOfCall, (uint));
-        uint8 decimals = 6;
-        uint256 maxPrice = 100 * 10 ** decimals;
-        if (price > maxPrice) {
-            revert ExcessiveBotPrice(price, maxPrice);
-        }
+        _checkPriceOfBot(price);
         Bot memory bot = Bot({
             botHandle: botHandle,
             modelManagerId: modelManagerId,
@@ -333,6 +324,7 @@ contract MagnetAI is IMagnetAI, Ownable {
 
     function setBotPrice(string calldata botHandle, uint256 price) external onlyBotOwner(botHandle) {
         // No need to check the existence of `botHandle` due to the access control {onlyBotOwner}
+        _checkPriceOfBot(price);
         bots[botHandle].price = price;
         emit BotPriceModified(botHandle, price);
     }
@@ -359,15 +351,16 @@ contract MagnetAI is IMagnetAI, Ownable {
     /**
      * @param stringData the array consist of the string parameters for {createToken}
      * @param uintData the array consist of the uint parameters for {createToken}
+     * @param paymentToken the address of token which is used in bot token minting(address(0) means payment by ETH)
      * @dev The specific values of the parameters `stringData` and `uintData` are shown as follows:
      * `stringData[0]` == `botHandle`;
      * `stringData[1]` == `name`;
      * `stringData[2]` == `symbol`;
      * `uintData[0]` == `maxSupply`;
      * `uintData[1]` == `issuanceStartTime`;
-     * `uintData[2]` == `chatToEarnRatio`;
-     * `uintData[3]` == `airdropPercentagePerRound`;
-     * `uintData[4]` == `pricePerThousandTokens`;
+     * `uintData[2]` == `dropTime`;
+     * `uintData[3]` == `airdropRatio`;
+     * `uintData[4]` == `totalFund`;
      */
     function createToken(string[3] calldata stringData, uint256[5] calldata uintData, address paymentToken)
         external
@@ -378,10 +371,11 @@ contract MagnetAI is IMagnetAI, Ownable {
         if (createdBotTokens[botHandle] != address(0)) {
             revert BotTokenHasCreated(botHandle, createdBotTokens[botHandle]);
         }
-        if (indexOfSupportedToken[paymentToken] == 0) {
+        if (indexOfSupportedToken[paymentToken] == 0 && paymentToken != address(0)) {
             revert UnsupportedToken(paymentToken);
         }
-        address botTokenAddress = IBotTokenFactory(botTokenFactory).createToken(stringData, uintData, bots[botHandle].owner, paymentToken);
+        address botTokenAddress =
+            IBotTokenFactory(botTokenFactory).createToken(stringData, uintData, bots[botHandle].owner, paymentToken);
         createdBotTokens[botHandle] = botTokenAddress;
         emit BotTokenCreated(botHandle, botTokenAddress);
     }
@@ -420,7 +414,21 @@ contract MagnetAI is IMagnetAI, Ownable {
         isValidInput = isValidLengthOfInput && isValidCharOfInput;
     }
 
-    function _checkExistenceOfBot(string memory botHandle) internal view {
+    function _checkPriceOfBot(uint256 price) internal pure {
+        // Note the address of USDT should be checked when this contract is under deployment
+        // address USDTAddr = 0xdac17f958d2ee523a2206206994597c13d831ec7;   // USDT on Ethereum mainnet
+        // The bot price should not exceed 100 * 10 ** `decimals` for per message of chat
+        // (bool successOfCall, bytes memory dataOfCall) = USDTAddr.staticcall(abi.encodeWithSelector(0x313ce567)); // "decimals()"
+        // require(successOfCall, "Fail to get decimals");
+        // uint8 decimals = abi.decode(dataOfCall, (uint));
+        uint8 decimals = 6;
+        uint256 maxPrice = 100 * 10 ** decimals;
+        if (price > maxPrice) {
+            revert ExcessiveBotPrice(price, maxPrice);
+        }
+    }
+
+    function _checkExistenceOfBot(string memory botHandle) private view {
         if (bots[botHandle].owner == address(0)) {
             revert NonexistentBot(botHandle);
         }
@@ -455,7 +463,7 @@ contract MagnetAI is IMagnetAI, Ownable {
 
     function addSupportedToken(address addedToken) external onlyOwner {
         uint64 indexOfAddedToken = indexOfSupportedToken[addedToken];
-        if (indexOfAddedToken != 0) {
+        if (indexOfAddedToken != 0 || addedToken == address(0)) {
             revert DuplicateTokenAdded(addedToken, indexOfAddedToken);
         }
         indexOfSupportedToken[addedToken] = uint64(supportedTokens.length);
@@ -464,11 +472,11 @@ contract MagnetAI is IMagnetAI, Ownable {
     }
 
     function removeSupportedToken(address removedToken) external onlyOwner {
-        if (indexOfSupportedToken[removedToken] == 0) {
+        uint64 indexOfRemovedToken = indexOfSupportedToken[removedToken];
+        if (indexOfRemovedToken == 0) {
             revert UnsupportedToken(removedToken);
         }
         address tailElement = supportedTokens[supportedTokens.length - 1];
-        uint64 indexOfRemovedToken = indexOfSupportedToken[removedToken];
         supportedTokens[indexOfRemovedToken] = tailElement;
         delete indexOfSupportedToken[removedToken];
         supportedTokens.pop();
