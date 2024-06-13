@@ -19,8 +19,6 @@ contract TestMagnetAI_Subnet is Test, CommonFunctionsForTest {
     address public USDTAddr;
     BotTokenFactory public factory;
     address public factoryAddr;
-    BotToken public botToken;
-    address public botTokenAddr;
     MagnetAI public entity;
     address public entityAddr;
 

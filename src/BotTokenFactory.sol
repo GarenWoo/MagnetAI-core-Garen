@@ -88,9 +88,9 @@ contract BotTokenFactory is IBotTokenFactory, Ownable {
             bytes1 singleByte = nameBytes[i];
             if (
                 !(
-                    singleByte == " " || singleByte == "-" || singleByte == "."
-                        || (singleByte >= "0" && singleByte <= "9") || (singleByte >= "A" && singleByte <= "Z")
-                        || singleByte == "_" || (singleByte >= "a" && singleByte <= "z")
+                singleByte == " " || singleByte == "-" || singleByte == "."
+                || (singleByte >= "0" && singleByte <= "9") || (singleByte >= "A" && singleByte <= "Z")
+                || singleByte == "_" || (singleByte >= "a" && singleByte <= "z")
                 )
             ) {
                 revert InvalidTokenName(name);
@@ -100,8 +100,8 @@ contract BotTokenFactory is IBotTokenFactory, Ownable {
             bytes1 singleByte = symbolBytes[i];
             if (
                 !(
-                    (singleByte >= "0" && singleByte <= "9") || (singleByte >= "A" && singleByte <= "Z")
-                        || (singleByte >= "a" && singleByte <= "z")
+                (singleByte >= "0" && singleByte <= "9") || (singleByte >= "A" && singleByte <= "Z")
+                || (singleByte >= "a" && singleByte <= "z")
                 )
             ) {
                 revert InvalidTokenSymbol(symbol);

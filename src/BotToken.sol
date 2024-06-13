@@ -116,7 +116,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
             revert InvalidAmount(amount);
         }
         // Check `price`
-        if (price == 0 || price % mintPriceIncrement != 0 || price < mintablePrice) {
+        if ((price - mintablePrice) % mintPriceIncrement != 0 || price < mintablePrice) {
             revert InvalidPrice(price, mintPriceIncrement);
         }
 
@@ -202,7 +202,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
         if (mints[msg.sender].slot == currentSlot) {
             address prev = address(1);
             address current = headOfCurrentSlot;
-            while (current != msg.sender) {
+            while (current != address(0) && current != msg.sender) {
                 prev = current;
                 current = mints[current].next;
             }

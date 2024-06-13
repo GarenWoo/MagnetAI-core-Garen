@@ -19,8 +19,6 @@ contract TestMagnetAI_Bot is Test, CommonFunctionsForTest {
     address public USDTAddr;
     BotTokenFactory public factory;
     address public factoryAddr;
-    BotToken public botToken;
-    address public botTokenAddr;
     MagnetAI public entity;
     address public entityAddr;
 
@@ -333,7 +331,7 @@ contract TestMagnetAI_Bot is Test, CommonFunctionsForTest {
         entity.followBot(stringInputs[0]);
     }
 
-    // Case 2: Input `botHandle` does not exist. Expect success.
+    // Case 2: Input `botHandle` does not exist. Expect revert.
     function test_followBot_NonexistentBotHandle() public {
         // Initialization
         string[] memory stringInputs = new string[](9);
@@ -589,7 +587,7 @@ contract TestMagnetAI_Bot is Test, CommonFunctionsForTest {
         entity.createToken(stringData, uintData, address(0));
         // Check the value of state variables in the created bot token
         BotToken token = BotToken(payable(entity.createdBotTokens(stringData[0])));
-        assertEq(token.botHandle(), stringInputs[0], "BotHandle does not match");
+        assertEq(token.botHandle(), stringData[0], "BotHandle does not match");
         assertEq(token.magnetAI(), entityAddr, "magnetAI address does not match");
         assertEq(token.botOwner(), botOwner, "botOwner does not match");
         assertEq(token.paymentToken(), address(0), "paymentToken does not match");

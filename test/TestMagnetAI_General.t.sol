@@ -19,8 +19,6 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
     address public USDTAddr;
     BotTokenFactory public factory;
     address public factoryAddr;
-    BotToken public botToken;
-    address public botTokenAddr;
     MagnetAI public entity;
     address public entityAddr;
 
@@ -123,7 +121,7 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
      * @dev Test case(s) of the function {claimReward}
      */
     // Case 1: Regular call(by authorized user). Expect success.
-    /// forge-config: default.fuzz.runs = 1000
+    /// forge-config: default.fuzz.runs = 10000
     function testFuzz_updateUserData_ByAuthorizedUser(uint256 seed) public {
         // Assumption(s)
         vm.assume(seed > 0 && seed <= 2000);
@@ -139,7 +137,7 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
     }
 
     // Case 2: Called by unauthorized user. Expect revert.
-    /// forge-config: default.fuzz.runs = 1000
+    /// forge-config: default.fuzz.runs = 10000
     function testFuzz_updateUserData_ByUnauthorizedUser(uint256 seed) public {
         // Assumption(s)
         vm.assume(seed > 0 && seed <= 2000);
@@ -155,7 +153,7 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
     }
 
     // Case 3: The length of the given arrays does not match. Expect revert.
-    /// forge-config: default.fuzz.runs = 1000
+    /// forge-config: default.fuzz.runs = 10000
     function testFuzz_updateUserData_UnmatchedArrays(uint256 lengthOfUsers, uint256 lengthOfData) public {
         // Assumption(s)
         vm.assume(
@@ -177,7 +175,7 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
     }
 
     // Case 4: One of the given array is zero-length. Expect revert.
-    /// forge-config: default.fuzz.runs = 1000
+    /// forge-config: default.fuzz.runs = 10000
     function testFuzz_updateUserData_ZeroLengthOfArray(uint256 seed) public {
         // Assumption(s)
         vm.assume(seed > 0 && seed <= 2000);
@@ -201,7 +199,7 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
      * @dev Test case(s) of the function {addSupportedToken}
      */
     // Case 1: Regular call(by the contract owner). Expect success.
-    /// forge-config: default.fuzz.runs = 50000
+    /// forge-config: default.fuzz.runs = 10000
     function testFuzz_addSupportedToken_ByContractOwner(address tokenToBeAdded) public {
         // Assumption(s)
         vm.assume(tokenToBeAdded != address(0));
@@ -213,7 +211,7 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
     }
 
     // Case 2: Add a duplicated token. Expect revert.
-    /// forge-config: default.fuzz.runs = 50000
+    /// forge-config: default.fuzz.runs = 10000
     function testFuzz_addSupportedToken_AddDuplicatedToken(address tokenToBeAdded) public {
         // Assumption(s)
         vm.assume(tokenToBeAdded != address(0));
@@ -245,7 +243,7 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
      * @dev Test case(s) of the function {removeSupportedToken}
      */
     // Case 1: Regular call(by the contract owner). Expect success.
-    /// forge-config: default.fuzz.runs = 5000
+    /// forge-config: default.fuzz.runs = 10000
     function testFuzz_removeSupportedToken_ByContractOwner(uint256 length) public {
         // Assumption(s)
         vm.assume(length > 0 && length <= 100);
@@ -265,7 +263,7 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
     }
 
     // Case 2: Attempt to remove a unsupported token. Expect revert.
-    /// forge-config: default.fuzz.runs = 5000
+    /// forge-config: default.fuzz.runs = 10000
     function testFuzz_removeSupportedToken_RemoveUnsupportedToken(address token) public {
         // Assumption(s)
         vm.assume(token != address(0));
@@ -296,7 +294,7 @@ contract TestMagnetAI_General is Test, CommonFunctionsForTest {
      * @dev Test case(s) of the function {checkSupportOfToken}
      */
     // Case 1: Regular call. Expect success.
-    /// forge-config: default.fuzz.runs = 50000
+    /// forge-config: default.fuzz.runs = 10000
     function testFuzz_checkSupportOfToken(address token1, address token2) public {
         // Assumption(s)
         vm.assume(token1 != address(0) && token2 != address(0) && token1 != token2);

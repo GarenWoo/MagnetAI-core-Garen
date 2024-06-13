@@ -19,8 +19,6 @@ contract TestMagnetAI_ModelManager is Test, CommonFunctionsForTest {
     address public USDTAddr;
     BotTokenFactory public factory;
     address public factoryAddr;
-    BotToken public botToken;
-    address public botTokenAddr;
     MagnetAI public entity;
     address public entityAddr;
 
@@ -439,7 +437,7 @@ contract TestMagnetAI_ModelManager is Test, CommonFunctionsForTest {
      * BotOwner is possible to equal `contractOwner`: false
      * `lengthOfServiceProof` is fixed: false
      */
-    /// forge-config: default.fuzz.runs = 50
+    /// forge-config: default.fuzz.runs = 800
     function testFuzz_submitServiceProof_UnmatchedLengthOfArrays(
         uint256 lengthOfBotHandles,
         uint256 lengthOfWorkloads,
@@ -513,7 +511,7 @@ contract TestMagnetAI_ModelManager is Test, CommonFunctionsForTest {
      * BotOwner is possible to equal `contractOwner`: false
      * `lengthOfServiceProof` is fixed: false
      */
-    /// forge-config: default.fuzz.runs = 50
+    /// forge-config: default.fuzz.runs = 800
     function testFuzz_submitServiceProof_ZeroLengthOfArrays(
         uint256 lengthOfWorkloads,
         uint256 lengthOfCallNumbers,
