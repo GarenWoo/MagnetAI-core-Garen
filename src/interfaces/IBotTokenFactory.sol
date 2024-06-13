@@ -14,7 +14,7 @@ interface IBotTokenFactory {
     error NotMagnetAI(address caller, address magnetAI);
     error InvalidTokenName(string name);
     error InvalidTokenSymbol(string symbol);
-    error InvalidMaxSupply(uint256 maxSupply, uint256 minimum);
+    error InvalidMaxSupply(uint256 inputMaxSupply);
     error InvalidIssuanceStartTime(uint256 inputTimestamp, uint256 currentTimestamp);
     error InvalidDropTime(uint256 dropTime);
     error InvalidAirdropRatio(uint256 Percentage);

@@ -375,7 +375,7 @@ contract MagnetAI is IMagnetAI, Ownable {
             revert UnsupportedToken(paymentToken);
         }
         address botTokenAddress =
-            IBotTokenFactory(botTokenFactory).createToken(stringData, uintData, bots[botHandle].owner, paymentToken);
+            IBotTokenFactory(botTokenFactory).createToken(stringData, uintData, msg.sender, paymentToken);
         createdBotTokens[botHandle] = botTokenAddress;
         emit BotTokenCreated(botHandle, botTokenAddress);
     }
@@ -448,12 +448,12 @@ contract MagnetAI is IMagnetAI, Ownable {
         emit RewardClaimed(msg.sender, rewardValue);
     }
 
-    function updateUserData(address[] calldata user, uint256[] calldata data) external authorizedByOwner {
-        if (user.length != data.length) {
-            revert InvalidUpdateOfUserData(user.length, data.length);
+    function updateUserData(address[] calldata users, uint256[] calldata data) external authorizedByOwner {
+        if (users.length != data.length || users.length * data.length == 0) {
+            revert InvalidUpdateOfUserData(users.length, data.length);
         }
-        for (uint256 i = 0; i < user.length; i++) {
-            userBalance[user[i]] = data[i];
+        for (uint256 i = 0; i < users.length; i++) {
+            userBalance[users[i]] = data[i];
         }
     }
 

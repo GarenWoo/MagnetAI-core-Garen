@@ -6,19 +6,21 @@ import {MagnetAI} from "../src/MagnetAI.sol";
 
 abstract contract CommonFunctionsForTest is Test {
     // Logic of Business
-    uint256 private constant _decimals = 6;
-    uint256 private constant _minPriceOfBot = 0;
-    uint256 private constant _maxPriceOfBot = 100 * 10 ** _decimals;
+    uint256 internal constant _decimals = 6;
+    uint256 internal constant _minPriceOfBot = 0;
+    uint256 internal constant _maxPriceOfBot = 100 * 10 ** _decimals;
 
-    uint256 private constant _minLengthOfBotHandle = 1;
-    uint256 private constant _maxLengthOfBotHandle = 32;
+    uint256 internal constant _minLengthOfBotHandle = 1;
+    uint256 internal constant _maxLengthOfBotHandle = 32;
 
     // Private State Variables
-    string private constant ALL_CHARS =
+    string internal constant ALL_CHARS =
         " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    string private constant BOTHANDLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    mapping(bytes32 => bool) private _stringHashRegistry;
-    uint256 private _nonce;
+    string internal constant BOTHANDLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    string internal constant BOTTOKENNAME_CHARS = " -._ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    string internal constant BOTTOKENSYMBOL_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    mapping(bytes32 => bool) internal _stringHashRegistry;
+    uint256 internal _nonce;
 
     // Model: Internal function(s)
     function _registerModel(
@@ -349,6 +351,14 @@ abstract contract CommonFunctionsForTest is Test {
             }
         }
         return uintArray;
+    }
+
+    function _generateUniqueAddressArray(uint256 length) internal returns (address[] memory) {
+        address[] memory addressArray = new address[](length);
+        for (uint i = 0; i < length; i++) {
+            addressArray[i] = address(uint160(uint256(keccak256(abi.encodePacked(block.prevrandao, blockhash(block.number - 1), _useNonce())))));
+        }
+        return addressArray;
     }
 
     function _generateRandomUint(uint256 increment, uint256 divisor) internal returns (uint256 result) {

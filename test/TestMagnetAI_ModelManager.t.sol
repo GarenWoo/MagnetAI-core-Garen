@@ -43,8 +43,6 @@ contract TestMagnetAI_ModelManager is Test, CommonFunctionsForTest {
         vm.stopPrank();
     }
 
-    // ————————————————————————————————————————------------------ Model Manager ————————————————————————————————————————------------------
-
     /**
      * @dev Test case(s) of the function {registerModelManager}
      */

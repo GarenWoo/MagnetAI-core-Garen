@@ -52,7 +52,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
         magnetAI = _magnetAI;
         botOwner = _botOwner;
         paymentToken = _paymentToken;
-        airdropSupply = uintData[3] == 0 ? 0 : uintData[0] * uintData[3] / 100;
+        airdropSupply = uintData[0] * uintData[3] / 100;
         mintSupply = uintData[0] - airdropSupply;
         mintablePrice = pricePerKToken;
     }
@@ -89,7 +89,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
     }
 
     modifier onlyEnded() {
-        if (!(issuanceEndTime != 0 && block.timestamp >= issuanceEndTime)) {
+        if (issuanceEndTime == 0 || block.timestamp < issuanceEndTime) {
             revert NotEnded(totalMintedAmount, mintSupply, block.timestamp, issuanceEndTime);
         }
         _;
@@ -143,13 +143,13 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
             if (amount == amountOfPreviousMint && price == priceOfPreviousMint) {
                 revert DuplicateMint(amount, price);
             }
-            payables = amount * price - amountOfPreviousMint * priceOfPreviousMint;
+            payables = amount * price / 1000 - amountOfPreviousMint * priceOfPreviousMint / 1000;
             totalMintedAmount += amount - amountOfPreviousMint;
             totalMintedPayment += payables;
         } else {
-            payables = amount * price;
+            payables = amount * price / 1000;
             mints[msg.sender].confirmedAmount += amountOfPreviousMint;
-            mints[msg.sender].confirmedPayment += amountOfPreviousMint * priceOfPreviousMint;
+            mints[msg.sender].confirmedPayment += amountOfPreviousMint * priceOfPreviousMint / 1000;
             totalMintedAmount += amount;
             totalMintedPayment += payables;
         }
@@ -190,7 +190,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
         // Assume `amount` and `price` of `msg.sender` are both updated at the same time. `amount` updated before the current slot will be set zero
         uint256 amount = mints[msg.sender].amount;
         uint256 totalAmount = mints[msg.sender].confirmedAmount + amount;
-        uint256 totalPayment = mints[msg.sender].confirmedPayment + amount * mints[msg.sender].price;
+        uint256 totalPayment = mints[msg.sender].confirmedPayment + amount * mints[msg.sender].price / 1000;
         // Ensure the payment of `msg.sender` withdrawable
         if (totalPayment == 0) {
             revert NoneMinted(msg.sender);
@@ -244,14 +244,14 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
         } else {
             // The case that `msg.sender` has minted in the last slot(i.e. the slot that gets into the locked phase)
             uint256 priceOfLastFinalist = mintablePrice - mintPriceIncrement;
-            // If `price` is definitely lower than `priceOfLastFinalist`, refund (`unconfirmedAmount` * `price`) to `msg.sender`
+            // If `price` is definitely lower than `priceOfLastFinalist`, refund (`unconfirmedAmount` * `price` / 1000) to `msg.sender`
             if (price < priceOfLastFinalist) {
-                refund = unconfirmedAmount * price;
+                refund = unconfirmedAmount * price / 1000;
             } else if (price > priceOfLastFinalist) {
                 actualMintedAmount += unconfirmedAmount;
                 finalSlotMintableAmount -= unconfirmedAmount;
                 previousConfirmedAmount += unconfirmedAmount;
-                previousConfirmedPayment += unconfirmedAmount * price;
+                previousConfirmedPayment += unconfirmedAmount * price / 1000;
             } else {
                 address current = headOfCurrentSlot;
                 uint256 updatedAmount = finalSlotMintableAmount;
@@ -262,12 +262,12 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
                         if (updatedAmount < unconfirmedAmount) {
                             // Calculate the amount of refund
                             excess = unconfirmedAmount - updatedAmount;
-                            refund = excess * price;
+                            refund = excess * price / 1000;
                             actualMintedAmount -= excess;
                         }
                         finalSlotMintableAmount -= unconfirmedAmount - excess;
                         previousConfirmedAmount += unconfirmedAmount - excess;
-                        previousConfirmedPayment += (unconfirmedAmount - excess) * price;
+                        previousConfirmedPayment += (unconfirmedAmount - excess) * price / 1000;
                         break;
                     }
                     if (mints[current].amount >= updatedAmount) {
@@ -307,13 +307,13 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
         address current = headOfCurrentSlot;
         while (updatedAmount < mintSupply) {
             updatedAmount += mints[current].amount;
-            payment += mints[current].price * mints[current].amount;
+            payment += mints[current].amount * mints[current].price / 1000;
             prev = current;
             current = mints[current].next;
         }
         // Calculate the refunded amount for the last finalist if `updatedAmount` exceeds `mintSupply`
         if (updatedAmount > mintSupply) {
-            uint256 failedPayment = (updatedAmount - mintSupply) * mints[prev].price;
+            uint256 failedPayment = (updatedAmount - mintSupply) * mints[prev].price / 1000;
             payment -= failedPayment;
         }
         // Locked this function
@@ -374,7 +374,7 @@ contract BotToken is IBotToken, ERC20, ERC20Permit, ReentrancyGuard {
         if (totalMintedAmount >= mintSupply) {
             if (updatedAmount > mintSupply) {
                 excess = updatedAmount - mintSupply;
-                uint256 paymentOfExcess = excess * price;
+                uint256 paymentOfExcess = excess * price / 1000;
                 totalMintedAmount -= excess;
                 totalMintedPayment -= paymentOfExcess;
                 _transferAsset(address(0), msg.sender, paymentOfExcess);

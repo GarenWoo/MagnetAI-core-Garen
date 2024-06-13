@@ -56,7 +56,8 @@ contract BotTokenFactory is IBotTokenFactory, Ownable {
     ) external onlyMagnetAI returns (address tokenAddress) {
         _checkStringData(stringData[1], stringData[2]);
         _checkUintData(uintData[0], uintData[1], uintData[2], uintData[3]);
-        (uint256 pricePerKToken, uint256 mintPriceIncrement) = _calculateMintPriceAndIncrement(uintData[0], uintData[4], paymentToken);
+        uint256 mintSupply = uintData[0] - uintData[0] * uintData[3] / 100;
+        (uint256 pricePerKToken, uint256 mintPriceIncrement) = _calculateMintPriceAndIncrement(mintSupply, uintData[4], paymentToken);
         // `uintData[4]` is offered but useless to the constructor of the contract {BotToken}
         BotToken botToken = new BotToken(
             stringData,
@@ -76,10 +77,10 @@ contract BotTokenFactory is IBotTokenFactory, Ownable {
         uint256 nameBytesLength = nameBytes.length;
         uint256 symbolBytesLength = symbolBytes.length;
         // Check string length
-        if (!(nameBytesLength != 0 && nameBytesLength <= 32)) {
+        if (nameBytesLength == 0 || nameBytesLength > 32) {
             revert InvalidTokenName(name);
         }
-        if (!(nameBytesLength != 0 && nameBytesLength <= 10)) {
+        if (symbolBytesLength == 0 || symbolBytesLength > 10) {
             revert InvalidTokenSymbol(symbol);
         }
         // Check character validity
@@ -114,7 +115,7 @@ contract BotTokenFactory is IBotTokenFactory, Ownable {
     {
         // Check `maxSupply`: not allowed to be less than 100000.
         if (maxSupply == 0 || maxSupply % 100000 != 0) {
-            revert InvalidMaxSupply(maxSupply, 100000);
+            revert InvalidMaxSupply(maxSupply);
         }
         // Check `issuanceStartTime`: No later than 1 year later
         if (issuanceStartTime > block.timestamp + 31536000) {
@@ -130,7 +131,7 @@ contract BotTokenFactory is IBotTokenFactory, Ownable {
         }
     }
 
-    function _calculateMintPriceAndIncrement(uint256 maxSupply, uint256 totalFund, address paymentToken)
+    function _calculateMintPriceAndIncrement(uint256 mintSupply, uint256 totalFund, address paymentToken)
         private
         view
         returns (uint256 pricePerKToken, uint256 mintPriceIncrement)
@@ -147,7 +148,7 @@ contract BotTokenFactory is IBotTokenFactory, Ownable {
             decimals = abi.decode(data, (uint8));
         }
         // Calculate the price per 1000 tokens. The base price is 1(basic unit) token
-        pricePerKToken = (totalFund + 1) * 1000 * 10 ** decimals / maxSupply;
+        pricePerKToken = (totalFund + 1) * 1000 * 10 ** decimals / mintSupply;
         // Note the following value is set only for the temporary use.
         uint256 minPriceThousandTokens = 1 * 10 ** (decimals / 2);
         if (pricePerKToken < minPriceThousandTokens) {
