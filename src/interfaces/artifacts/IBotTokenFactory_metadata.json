@@ -1,0 +1,226 @@
+{
+	"compiler": {
+		"version": "0.8.25+commit.b61c2a91"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "paymentToken",
+						"type": "address"
+					}
+				],
+				"name": "FailToGetTokenDecimals",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "Percentage",
+						"type": "uint256"
+					}
+				],
+				"name": "InvalidAirdropRatio",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "dropTime",
+						"type": "uint256"
+					}
+				],
+				"name": "InvalidDropTime",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "inputTimestamp",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "currentTimestamp",
+						"type": "uint256"
+					}
+				],
+				"name": "InvalidIssuanceStartTime",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "maxSupply",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "minimum",
+						"type": "uint256"
+					}
+				],
+				"name": "InvalidMaxSupply",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					}
+				],
+				"name": "InvalidTokenName",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string",
+						"name": "symbol",
+						"type": "string"
+					}
+				],
+				"name": "InvalidTokenSymbol",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "caller",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "magnetAI",
+						"type": "address"
+					}
+				],
+				"name": "NotMagnetAI",
+				"type": "error"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "magnetAI",
+						"type": "address"
+					}
+				],
+				"name": "Reinitialization",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "Uninitialized",
+				"type": "error"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "address",
+						"name": "magnetAI",
+						"type": "address"
+					}
+				],
+				"name": "Initialized",
+				"type": "event"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string[3]",
+						"name": "stringData",
+						"type": "string[3]"
+					},
+					{
+						"internalType": "uint256[5]",
+						"name": "uintData",
+						"type": "uint256[5]"
+					},
+					{
+						"internalType": "address",
+						"name": "botOwner",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "paymentToken",
+						"type": "address"
+					}
+				],
+				"name": "createToken",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "tokenAddress",
+						"type": "address"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "_magnetAI",
+						"type": "address"
+					}
+				],
+				"name": "initialize",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"title": "The interface of {BotTokenFactory}.",
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"Documents/MagnetAI/Contracts_MagnetAI_Local/src/interfaces/IBotTokenFactory.sol": "IBotTokenFactory"
+		},
+		"evmVersion": "cancun",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": true,
+			"runs": 0
+		},
+		"remappings": []
+	},
+	"sources": {
+		"Documents/MagnetAI/Contracts_MagnetAI_Local/src/interfaces/IBotTokenFactory.sol": {
+			"keccak256": "0xdd8433a419a12f5e3d5c56f7f2a50c06445598e852d18c562465ffe51b79e120",
+			"license": "GPL-3.0-or-later",
+			"urls": [
+				"bzz-raw://34abfe1c4de2a758308b78370abfe9e0d4e8ef3efdf0d548f2611fdb6e199868",
+				"dweb:/ipfs/QmTsGkqgmCX6Hn2RuChYc1BbP5nJb6CD6iPWacUdUWJ7oe"
+			]
+		}
+	},
+	"version": 1
+}
